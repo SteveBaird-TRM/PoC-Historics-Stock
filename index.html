@@ -14,6 +14,13 @@
     button:hover:not(:disabled) { background: #114c3d; }
     button:disabled { cursor: not-allowed; opacity: .45; }
     #download { display: block; margin-left: auto; margin-bottom: 20px; }
+    .tabs { display: flex; align-items: end; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin-top: 6px; }
+    .tab { flex: 0 0 auto; white-space: nowrap; border-color: var(--line); border-radius: 6px 6px 0 0; margin-bottom: -1px; background: #e7ede8; color: var(--muted); }
+    .tab:hover:not(:disabled) { background: #f2f6f2; color: var(--ink); }
+    .tab[aria-selected="true"] { border-bottom-color: var(--green); background: var(--green); color: white; }
+    .tab[aria-selected="true"]:hover:not(:disabled) { border-bottom-color: #114c3d; background: #114c3d; color: white; }
+    .tab-panel { padding-top: 24px; }
+    .panel-title { margin-bottom: 16px; }
     :focus-visible { outline: 3px solid #cf8a32; outline-offset: 3px; }
     header { border-top: 5px solid var(--green); background: white; border-bottom: 1px solid var(--line); }
     .header-inner { max-width: 1320px; margin: auto; padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
@@ -101,23 +108,39 @@
       <button id="compare" disabled>Compare stock</button>
     </div>
     <p id="message" role="status" aria-live="polite" hidden></p>
-    <section class="stats" aria-label="Comparison totals">
-      <div class="stat"><span>Stock rows</span><strong id="total">0</strong></div>
-      <div class="stat"><span>Flagged rows</span><strong id="flagged">0</strong></div>
-      <div class="stat"><span>Zero web stock</span><strong id="zero">0</strong></div>
-      <div class="stat"><span>Missing from web</span><strong id="missing">0</strong></div>
+    <div class="tabs" role="tablist" aria-label="Stock comparisons">
+      <button id="tab-flagged" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-flagged" tabindex="0">Flagged inventory</button>
+      <button id="tab-no-stock" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-no-stock" tabindex="-1">No web stock and no shelf stock</button>
+    </div>
+    <section id="panel-flagged" class="tab-panel" role="tabpanel" aria-labelledby="tab-flagged">
+      <h2 class="panel-title">Flagged inventory</h2>
+      <section class="stats" aria-label="Comparison totals">
+        <div class="stat"><span>Stock rows</span><strong id="total">0</strong></div>
+        <div class="stat"><span>Flagged rows</span><strong id="flagged">0</strong></div>
+        <div class="stat"><span>Zero web stock</span><strong id="zero">0</strong></div>
+        <div class="stat"><span>Missing from web</span><strong id="missing">0</strong></div>
+      </section>
+      <button id="download" disabled>Download results CSV</button>
+      <section aria-label="Comparison results">
+        <div class="toolbar">
+          <input id="search" type="search" placeholder="Search items" aria-label="Search item number or product" disabled>
+          <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option></select>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="5" class="empty">No comparison yet</td></tr></tbody></table>
+        </div>
+        <div class="table-footer"><span id="showing">0 rows</span><span id="download-note" hidden>CSV includes all flagged rows</span></div>
+      </section>
     </section>
-    <button id="download" disabled>Download results CSV</button>
-    <section aria-label="Comparison results">
+    <section id="panel-no-stock" class="tab-panel" role="tabpanel" aria-labelledby="tab-no-stock" hidden>
       <div class="toolbar">
-        <h2>Flagged inventory</h2>
-        <input id="search" type="search" placeholder="Search items" aria-label="Search item number or product" disabled>
-        <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option></select>
+        <h2>No web stock and no shelf stock</h2>
+        <button id="download-no-stock" disabled>Download report CSV</button>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="5" class="empty">No comparison yet</td></tr></tbody></table>
+        <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="no-stock-results"><tr><td colspan="5" class="empty">No comparison yet</td></tr></tbody></table>
       </div>
-      <div class="table-footer"><span id="showing">0 rows</span><span id="download-note" hidden>CSV includes all flagged rows</span></div>
+      <div class="table-footer"><span id="no-stock-showing">0 rows</span></div>
     </section>
   </main>
   <script src="papaparse.min.js"></script>
@@ -125,6 +148,7 @@
     const element = (id) => document.getElementById(id);
     const sourceFiles = { sos: null, web: null };
     let flaggedRows = [];
+    let noStockRows = [];
     let sosColumns = [];
     let busy = false;
     let revision = 0;
@@ -141,15 +165,42 @@
       element('compare').disabled = busy || !sourceFiles.sos || !sourceFiles.web;
     }
 
+    const reportTabs = Array.from(document.querySelectorAll('[role="tab"]'));
+    function activateReportTab(selectedTab) {
+      for (const tab of reportTabs) {
+        const selected = tab === selectedTab;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        element(tab.getAttribute('aria-controls')).hidden = !selected;
+      }
+      selectedTab.focus();
+    }
+
+    reportTabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => activateReportTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        let nextIndex = index;
+        if (event.key === 'ArrowRight') nextIndex = (index + 1) % reportTabs.length;
+        else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + reportTabs.length) % reportTabs.length;
+        else if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = reportTabs.length - 1;
+        else return;
+        event.preventDefault();
+        activateReportTab(reportTabs[nextIndex]);
+      });
+    });
+
     function clearResults() {
       flaggedRows = [];
+      noStockRows = [];
       sosColumns = [];
       for (const id of ['total', 'flagged', 'zero', 'missing']) element(id).textContent = '0';
-      for (const id of ['download', 'search', 'filter']) element(id).disabled = true;
+      for (const id of ['download', 'download-no-stock', 'search', 'filter']) element(id).disabled = true;
       element('download-note').hidden = true;
       element('search').value = '';
       element('filter').value = 'all';
       renderRows('No comparison yet');
+      renderNoStockRows('No comparison yet');
     }
 
     function selectFiles(files) {
@@ -206,7 +257,7 @@
       clearResults();
       notify('Comparing inventories...');
       try {
-        const [sos, web] = await Promise.all([readCSV(sourceFiles.sos, ['item_number']), readCSV(sourceFiles.web, ['id', 'stock'])]);
+        const [sos, web] = await Promise.all([readCSV(sourceFiles.sos, ['item_number', 'total_stock_available']), readCSV(sourceFiles.web, ['id', 'stock'])]);
         if (currentRevision !== revision) return;
         for (const column of ['web_stock', 'web_status']) {
           if (sos.columnMap.has(column)) throw new Error(`SOS already contains a reserved output column: ${column}.`);
@@ -214,6 +265,7 @@
         const lookup = new Map();
         const webId = web.columnMap.get('id');
         const webStock = web.columnMap.get('stock');
+        const webTitle = web.columnMap.get('title');
         for (const [index, row] of web.rows.entries()) {
           const key = keyOf(row[webId]);
           const stockText = row[webStock].trim();
@@ -221,7 +273,7 @@
           if (!key) throw new Error(`Web row ${index + 2}: missing id.`);
           if (lookup.has(key)) throw new Error(`Duplicate web id: ${row[webId]}.`);
           if (!stockText || !Number.isFinite(stock)) throw new Error(`Web row ${index + 2}: invalid stock value.`);
-          lookup.set(key, { stock, stockText });
+          lookup.set(key, { stock, stockText, item: row[webId], title: webTitle ? row[webTitle] : '' });
         }
         const itemColumn = sos.columnMap.get('item_number');
         const results = [];
@@ -234,16 +286,34 @@
           }
         }
         flaggedRows = results;
+        const shelfStockColumn = sos.columnMap.get('total_stock_available');
+        const shelfItemKeys = new Set(sos.rows.map((row) => keyOf(row[itemColumn])));
+        noStockRows = results.filter((row) => {
+          const shelfStock = String(row[shelfStockColumn] ?? '').trim();
+          return shelfStock !== '' && Number.isFinite(Number(shelfStock)) && Number(shelfStock) === 0;
+        });
+        const productColumn = sos.columnMap.get('product_name');
+        for (const [key, match] of lookup) {
+          if (match.stock !== 0 || shelfItemKeys.has(key)) continue;
+          const row = Object.fromEntries(sos.columns.map((column) => [column, '']));
+          row[itemColumn] = match.item;
+          row[shelfStockColumn] = '0';
+          if (productColumn && webTitle) row[productColumn] = match.title;
+          row.Web_Stock = match.stockText;
+          row.Web_Status = 'Zero web stock';
+          noStockRows.push(row);
+        }
         sosColumns = sos.columns;
         element('total').textContent = numberFormat.format(sos.rows.length);
         element('flagged').textContent = numberFormat.format(results.length);
         element('zero').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Zero web stock').length);
         element('missing').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Missing from web').length);
-        for (const id of ['download', 'search', 'filter']) element(id).disabled = false;
+        for (const id of ['download', 'download-no-stock', 'search', 'filter']) element(id).disabled = false;
         element('download-note').hidden = false;
         element('sos-status').textContent = `${sourceFiles.sos.name} / ${numberFormat.format(sos.rows.length)} rows`;
         element('web-status').textContent = `${sourceFiles.web.name} / ${numberFormat.format(web.rows.length)} rows`;
         renderRows();
+        renderNoStockRows();
         notify('Comparison complete.');
       } catch (error) {
         if (currentRevision === revision) { clearResults(); notify(error.message, true); }
@@ -253,16 +323,13 @@
       }
     });
 
-    function renderRows(emptyText = 'No matching items') {
-      const query = element('search').value.trim().toLowerCase();
-      const status = element('filter').value;
+    function renderInventoryRows(rows, targetId, emptyText) {
       const findColumn = (name) => sosColumns.find((column) => column.toLowerCase() === name);
       const itemColumn = findColumn('item_number');
       const productColumn = findColumn('product_name');
       const stockColumn = findColumn('total_stock_available');
-      const visible = flaggedRows.filter((row) => (status === 'all' || row.Web_Status === status) && (!query || `${row[itemColumn]} ${row[productColumn] || ''}`.toLowerCase().includes(query)));
       const fragment = document.createDocumentFragment();
-      for (const row of visible) {
+      for (const row of rows) {
         const tableRow = document.createElement('tr');
         const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status];
         const classes = ['item', 'product', 'numeric', 'numeric', row.Web_Status === 'Zero web stock' ? 'status zero' : 'status'];
@@ -274,7 +341,7 @@
         });
         fragment.append(tableRow);
       }
-      if (!visible.length) {
+      if (!rows.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
         cell.colSpan = 5;
@@ -283,25 +350,42 @@
         row.append(cell);
         fragment.append(row);
       }
-      element('results').replaceChildren(fragment);
+      element(targetId).replaceChildren(fragment);
+    }
+
+    function renderRows(emptyText = 'No matching items') {
+      const query = element('search').value.trim().toLowerCase();
+      const status = element('filter').value;
+      const itemColumn = sosColumns.find((column) => column.toLowerCase() === 'item_number');
+      const productColumn = sosColumns.find((column) => column.toLowerCase() === 'product_name');
+      const visible = flaggedRows.filter((row) => (status === 'all' || row.Web_Status === status) && (!query || `${row[itemColumn]} ${row[productColumn] || ''}`.toLowerCase().includes(query)));
+      renderInventoryRows(visible, 'results', emptyText);
       element('showing').textContent = `${numberFormat.format(visible.length)} of ${numberFormat.format(flaggedRows.length)} rows`;
+    }
+
+    function renderNoStockRows(emptyText = 'No items with both web and shelf stock at zero') {
+      renderInventoryRows(noStockRows, 'no-stock-results', emptyText);
+      element('no-stock-showing').textContent = `${numberFormat.format(noStockRows.length)} rows`;
     }
 
     element('search').addEventListener('input', () => renderRows());
     element('filter').addEventListener('change', () => renderRows());
-    element('download').addEventListener('click', () => {
+    function downloadRows(rows, filename) {
       const columns = [...sosColumns, 'Web_Stock', 'Web_Status'];
-      const csv = Papa.unparse({ fields: columns, data: flaggedRows.map((row) => columns.map((column) => row[column])) }, { escapeFormulae: true });
+      const csv = Papa.unparse({ fields: columns, data: rows.map((row) => columns.map((column) => row[column])) }, { escapeFormulae: true });
       const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = 'sos_zero_or_missing_web_stock.csv';
+      anchor.download = filename;
       document.body.append(anchor);
       anchor.click();
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    });
+    }
+
+    element('download').addEventListener('click', () => downloadRows(flaggedRows, 'sos_zero_or_missing_web_stock.csv'));
+    element('download-no-stock').addEventListener('click', () => downloadRows(noStockRows, 'sos_no_web_or_shelf_stock.csv'));
   </script>
 </body>
 </html>
