@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Historics | Stock comparison</title>
+  <title>Historics: Stock Comparison</title>
   <link rel="icon" href="favicon-32x32.png" type="image/x-icon">
   <style>
     :root { color-scheme: light; --ink: #202b29; --muted: #5c6d67; --line: #d8e1db; --green: #17634f; --wash: #eef4ef; --orange: #9a4427; }
@@ -14,9 +14,9 @@
     button { cursor: pointer; border: 1px solid var(--green); border-radius: 4px; padding: 10px 18px; background: var(--green); color: white; font-weight: bold; }
     button:hover:not(:disabled) { background: #114c3d; }
     button:disabled { cursor: not-allowed; opacity: .45; }
-    #download { display: block; margin-left: auto; margin-bottom: 20px; }
-    .tabs { display: flex; align-items: end; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin-top: 6px; }
-    .tab { flex: 0 0 auto; white-space: nowrap; border-color: var(--line); border-radius: 6px 6px 0 0; margin-bottom: -1px; background: #e7ede8; color: var(--muted); }
+    #download, #download-no-stock { display: block; margin-left: auto; margin-bottom: 20px; }
+    .tabs { display: flex; align-items: end; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-top: 6px; }
+    .tab { flex: 0 0 auto; font-size: 18px; white-space: nowrap; border-color: var(--line); border-radius: 6px 6px 0 0; margin-bottom: -1px; background: #e7ede8; color: var(--muted); }
     .tab:hover:not(:disabled) { background: #f2f6f2; color: var(--ink); }
     .tab[aria-selected="true"] { border-bottom-color: var(--green); background: var(--green); color: white; }
     .tab[aria-selected="true"]:hover:not(:disabled) { border-bottom-color: #114c3d; background: #114c3d; color: white; }
@@ -53,6 +53,8 @@
     .stat span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; }
     .stat strong { display: block; font: normal 32px/1.4 Georgia, serif; font-variant-numeric: tabular-nums; }
     .stat:nth-child(2) strong { color: var(--green); }
+    .stats.three { grid-template-columns: repeat(3, 1fr); }
+    .stats.three .stat:nth-child(2) strong { color: var(--ink); }
     .stat:nth-child(4) strong { color: var(--orange); }
     .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
     h2 { margin: 0 auto 0 0; font: normal 23px Georgia, serif; }
@@ -93,7 +95,7 @@
 <body>
   <header><div class="header-inner"><div class="brand">Historics</div><div class="local">Local processing</div></div></header>
   <main>
-    <div class="heading"><h1>Stock comparison</h1></div>
+    <div class="heading"><h1>Step 1: Data Load</h1></div>
     <section class="sources" aria-label="Source files">
       <div class="source">
         <div class="source-heading"><label for="sos">Stock on shelf file (csv)</label><span>Item_Number</span></div>
@@ -109,6 +111,7 @@
       <button id="compare" disabled>Compare stock</button>
     </div>
     <p id="message" role="status" aria-live="polite" hidden></p>
+    <div class="heading"><h1>Step 2: Comparison</h1></div>
     <div class="tabs" role="tablist" aria-label="Stock comparisons">
       <button id="tab-flagged" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-flagged" tabindex="0">Flagged web inventory</button>
       <button id="tab-no-stock" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-no-stock" tabindex="-1">No web stock and no shelf stock</button>
@@ -121,7 +124,7 @@
         <div class="stat"><span>Zero web stock</span><strong id="zero">0</strong></div>
         <div class="stat"><span>Missing from web</span><strong id="missing">0</strong></div>
       </section>
-      <button id="download" disabled>Download results CSV</button>
+      <button id="download" disabled>Download web inventory report CSV</button>
       <section aria-label="Comparison results">
         <div class="toolbar">
           <input id="search" type="search" placeholder="Search items" aria-label="Search item number or product" disabled>
@@ -134,10 +137,13 @@
       </section>
     </section>
     <section id="panel-no-stock" class="tab-panel" role="tabpanel" aria-labelledby="tab-no-stock" hidden>
-      <div class="toolbar">
-        <h2>No web stock and no shelf stock</h2>
-        <button id="download-no-stock" disabled>Download report CSV</button>
-      </div>
+      <h2 class="panel-title">No web stock and no shelf stock</h2>
+      <section class="stats three" aria-label="No stock totals">
+        <div class="stat"><span>Total rows</span><strong id="ns-total">0</strong></div>
+        <div class="stat"><span>In shelf file</span><strong id="ns-shelf">0</strong></div>
+        <div class="stat"><span>Web only (not in shelf file)</span><strong id="ns-web-only">0</strong></div>
+      </section>
+      <button id="download-no-stock" disabled>Download no stock report CSV</button>
       <div class="table-wrap">
         <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="no-stock-results"><tr><td colspan="5" class="empty">No comparison yet</td></tr></tbody></table>
       </div>
@@ -195,7 +201,7 @@
       flaggedRows = [];
       noStockRows = [];
       sosColumns = [];
-      for (const id of ['total', 'flagged', 'zero', 'missing']) element(id).textContent = '0';
+      for (const id of ['total', 'flagged', 'zero', 'missing', 'ns-total', 'ns-shelf', 'ns-web-only']) element(id).textContent = '0';
       for (const id of ['download', 'download-no-stock', 'search', 'filter']) element(id).disabled = true;
       element('download-note').hidden = true;
       element('search').value = '';
@@ -302,6 +308,7 @@
           if (productColumn && webTitle) row[productColumn] = match.title;
           row.Web_Stock = match.stockText;
           row.Web_Status = 'Zero web stock';
+          row.webOnly = true;
           noStockRows.push(row);
         }
         sosColumns = sos.columns;
@@ -366,6 +373,10 @@
 
     function renderNoStockRows(emptyText = 'No items with both web and shelf stock at zero') {
       renderInventoryRows(noStockRows, 'no-stock-results', emptyText);
+      const webOnly = noStockRows.filter((row) => row.webOnly).length;
+      element('ns-total').textContent = numberFormat.format(noStockRows.length);
+      element('ns-shelf').textContent = numberFormat.format(noStockRows.length - webOnly);
+      element('ns-web-only').textContent = numberFormat.format(webOnly);
       element('no-stock-showing').textContent = `${numberFormat.format(noStockRows.length)} rows`;
     }
 
