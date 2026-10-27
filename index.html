@@ -14,7 +14,7 @@
     button { cursor: pointer; border: 1px solid var(--green); border-radius: 4px; padding: 10px 18px; background: var(--green); color: white; font-weight: bold; }
     button:hover:not(:disabled) { background: #114c3d; }
     button:disabled { cursor: not-allowed; opacity: .45; }
-    #download, #download-no-stock { display: block; margin-left: auto; margin-bottom: 20px; }
+    #download, #download-no-stock, #download-price { display: block; margin-left: auto; margin-bottom: 20px; }
     .tabs { display: flex; align-items: end; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-top: 6px; }
     .tab { flex: 0 0 auto; font-size: 18px; white-space: nowrap; border-color: var(--line); border-radius: 6px 6px 0 0; margin-bottom: -1px; background: #e7ede8; color: var(--muted); }
     .tab:hover:not(:disabled) { background: #f2f6f2; color: var(--ink); }
@@ -115,6 +115,7 @@
     <div class="tabs" role="tablist" aria-label="Stock comparisons">
       <button id="tab-flagged" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-flagged" tabindex="0">Flagged web inventory</button>
       <button id="tab-no-stock" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-no-stock" tabindex="-1">No web stock and no shelf stock</button>
+      <button id="tab-price" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-price" tabindex="-1">Price differences</button>
     </div>
     <section id="panel-flagged" class="tab-panel" role="tabpanel" aria-labelledby="tab-flagged">
       <h2 class="panel-title">Flagged web inventory</h2>
@@ -149,6 +150,19 @@
       </div>
       <div class="table-footer"><span id="no-stock-showing">0 rows</span></div>
     </section>
+    <section id="panel-price" class="tab-panel" role="tabpanel" aria-labelledby="tab-price" hidden>
+      <h2 class="panel-title">Price differences</h2>
+      <section class="stats three" aria-label="Price totals">
+        <div class="stat"><span>Items compared</span><strong id="pr-compared">0</strong></div>
+        <div class="stat"><span>Price differences</span><strong id="pr-diff">0</strong></div>
+        <div class="stat"><span>Not compared (no price)</span><strong id="pr-skipped">0</strong></div>
+      </section>
+      <button id="download-price" disabled>Download price differences CSV</button>
+      <div class="table-wrap">
+        <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf RRP</th><th class="numeric" scope="col">Web price</th><th class="numeric" scope="col">Difference</th></tr></thead><tbody id="price-results"><tr><td colspan="5" class="empty">No comparison yet</td></tr></tbody></table>
+      </div>
+      <div class="table-footer"><span id="price-showing">0 rows</span></div>
+    </section>
   </main>
   <script src="papaparse.min.js"></script>
   <script id="app">
@@ -156,6 +170,7 @@
     const sourceFiles = { sos: null, web: null };
     let flaggedRows = [];
     let noStockRows = [];
+    let priceRows = [];
     let sosColumns = [];
     let busy = false;
     let revision = 0;
@@ -200,14 +215,16 @@
     function clearResults() {
       flaggedRows = [];
       noStockRows = [];
+      priceRows = [];
       sosColumns = [];
-      for (const id of ['total', 'flagged', 'zero', 'missing', 'ns-shelf', 'ns-web-rows', 'ns-web-only']) element(id).textContent = '0';
-      for (const id of ['download', 'download-no-stock', 'search', 'filter']) element(id).disabled = true;
+      for (const id of ['total', 'flagged', 'zero', 'missing', 'ns-shelf', 'ns-web-rows', 'ns-web-only', 'pr-compared', 'pr-diff', 'pr-skipped']) element(id).textContent = '0';
+      for (const id of ['download', 'download-no-stock', 'download-price', 'search', 'filter']) element(id).disabled = true;
       element('download-note').hidden = true;
       element('search').value = '';
       element('filter').value = 'all';
       renderRows('No comparison yet');
       renderNoStockRows('No comparison yet');
+      renderPriceRows('No comparison yet');
     }
 
     function selectFiles(files) {
@@ -273,6 +290,7 @@
         const webId = web.columnMap.get('id');
         const webStock = web.columnMap.get('stock');
         const webTitle = web.columnMap.get('title');
+        const webPrice = web.columnMap.get('price');
         for (const [index, row] of web.rows.entries()) {
           const key = keyOf(row[webId]);
           const stockText = row[webStock].trim();
@@ -280,7 +298,7 @@
           if (!key) throw new Error(`Web row ${index + 2}: missing id.`);
           if (lookup.has(key)) throw new Error(`Duplicate web id: ${row[webId]}.`);
           if (!stockText || !Number.isFinite(stock)) throw new Error(`Web row ${index + 2}: invalid stock value.`);
-          lookup.set(key, { stock, stockText, item: row[webId], title: webTitle ? row[webTitle] : '' });
+          lookup.set(key, { stock, stockText, item: row[webId], title: webTitle ? row[webTitle] : '', price: webPrice ? row[webPrice] : '' });
         }
         const itemColumn = sos.columnMap.get('item_number');
         const results = [];
@@ -312,6 +330,30 @@
           noStockRows.push(row);
         }
         sosColumns = sos.columns;
+        const rrpColumn = sos.columnMap.get('rrp');
+        const sosProduct = sos.columnMap.get('product_name');
+        const parsePrice = (value) => {
+          const text = String(value ?? '').replace(/[^0-9.\-]/g, '');
+          return text !== '' && Number.isFinite(Number(text)) ? Number(text) : null;
+        };
+        let priceCompared = 0;
+        let priceSkipped = 0;
+        priceRows = [];
+        for (const row of sos.rows) {
+          const match = lookup.get(keyOf(row[itemColumn]));
+          if (!match) continue;
+          const rrp = rrpColumn ? parsePrice(row[rrpColumn]) : null;
+          const price = webPrice ? parsePrice(match.price) : null;
+          if (rrp === null || price === null) { priceSkipped++; continue; }
+          priceCompared++;
+          if (Math.round(rrp * 100) !== Math.round(price * 100)) {
+            priceRows.push({ item: row[itemColumn], product: sosProduct ? row[sosProduct] : '', rrp, price, diff: price - rrp });
+          }
+        }
+        element('pr-compared').textContent = numberFormat.format(priceCompared);
+        element('pr-diff').textContent = numberFormat.format(priceRows.length);
+        element('pr-skipped').textContent = numberFormat.format(priceSkipped);
+        element('download-price').disabled = !priceRows.length;
         element('total').textContent = numberFormat.format(sos.rows.length);
         element('ns-shelf').textContent = numberFormat.format(sos.rows.length);
         element('ns-web-rows').textContent = numberFormat.format(web.rows.length);
@@ -324,7 +366,10 @@
         element('web-status').textContent = `${sourceFiles.web.name} / ${numberFormat.format(web.rows.length)} rows`;
         renderRows();
         renderNoStockRows();
-        notify('Comparison complete.');
+        renderPriceRows();
+        const missingPrice = [!rrpColumn && 'rrp (shelf file)', !webPrice && 'price (web file)'].filter(Boolean);
+        if (missingPrice.length) notify(`Comparison complete. Price comparison skipped: missing column ${missingPrice.join(' and ')}.`, true);
+        else notify('Comparison complete.');
       } catch (error) {
         if (currentRevision === revision) { clearResults(); notify(error.message, true); }
       } finally {
@@ -379,6 +424,47 @@
       element('ns-web-only').textContent = numberFormat.format(webOnly);
       element('no-stock-showing').textContent = `${numberFormat.format(noStockRows.length)} rows`;
     }
+
+    const money = (value) => value.toFixed(2);
+    function renderPriceRows(emptyText = 'No price differences found') {
+      const fragment = document.createDocumentFragment();
+      for (const row of priceRows) {
+        const tableRow = document.createElement('tr');
+        const values = [row.item, row.product, money(row.rrp), money(row.price), (row.diff > 0 ? '+' : '') + money(row.diff)];
+        const classes = ['item', 'product', 'numeric', 'numeric', 'numeric status'];
+        values.forEach((value, index) => {
+          const cell = document.createElement('td');
+          cell.textContent = value;
+          cell.className = classes[index];
+          tableRow.append(cell);
+        });
+        fragment.append(tableRow);
+      }
+      if (!priceRows.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.className = 'empty';
+        cell.textContent = emptyText;
+        row.append(cell);
+        fragment.append(row);
+      }
+      element('price-results').replaceChildren(fragment);
+      element('price-showing').textContent = `${numberFormat.format(priceRows.length)} rows`;
+    }
+
+    element('download-price').addEventListener('click', () => {
+      const fields = ['Item_Number', 'Product_Name', 'RRP', 'Web_Price', 'Difference'];
+      const csv = Papa.unparse({ fields, data: priceRows.map((row) => [row.item, row.product, money(row.rrp), money(row.price), money(row.diff)]) }, { escapeFormulae: true });
+      const url = URL.createObjectURL(new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8;' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'sos_web_price_differences.csv';
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
 
     element('search').addEventListener('input', () => renderRows());
     element('filter').addEventListener('change', () => renderRows());
