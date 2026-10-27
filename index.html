@@ -53,8 +53,8 @@
     .stat span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; }
     .stat strong { display: block; font: normal 32px/1.4 Georgia, serif; font-variant-numeric: tabular-nums; }
     .stat:nth-child(2) strong { color: var(--green); }
-    .stats.two { grid-template-columns: repeat(2, 1fr); }
-    .stats.two .stat:nth-child(2) strong { color: var(--ink); }
+    .stats.three { grid-template-columns: repeat(3, 1fr); }
+    .stats.three .stat:nth-child(2) strong { color: var(--ink); }
     .stat:nth-child(4) strong { color: var(--orange); }
     .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
     h2 { margin: 0 auto 0 0; font: normal 23px Georgia, serif; }
@@ -138,9 +138,10 @@
     </section>
     <section id="panel-no-stock" class="tab-panel" role="tabpanel" aria-labelledby="tab-no-stock" hidden>
       <h2 class="panel-title">No web stock and no shelf stock</h2>
-      <section class="stats two" aria-label="No stock totals">
+      <section class="stats three" aria-label="No stock totals">
         <div class="stat"><span>Total Stock on Shelf Rows</span><strong id="ns-shelf">0</strong></div>
-        <div class="stat"><span>Total Web Stock Rows</span><strong id="ns-web-only">0</strong></div>
+        <div class="stat"><span>Total Web Stock Rows</span><strong id="ns-web-rows">0</strong></div>
+        <div class="stat"><span>Total Zero Stock Web Rows</span><strong id="ns-web-only">0</strong></div>
       </section>
       <button id="download-no-stock" disabled>Download no stock report CSV</button>
       <div class="table-wrap">
@@ -200,7 +201,7 @@
       flaggedRows = [];
       noStockRows = [];
       sosColumns = [];
-      for (const id of ['total', 'flagged', 'zero', 'missing', 'ns-shelf', 'ns-web-only']) element(id).textContent = '0';
+      for (const id of ['total', 'flagged', 'zero', 'missing', 'ns-shelf', 'ns-web-rows', 'ns-web-only']) element(id).textContent = '0';
       for (const id of ['download', 'download-no-stock', 'search', 'filter']) element(id).disabled = true;
       element('download-note').hidden = true;
       element('search').value = '';
@@ -312,6 +313,8 @@
         }
         sosColumns = sos.columns;
         element('total').textContent = numberFormat.format(sos.rows.length);
+        element('ns-shelf').textContent = numberFormat.format(sos.rows.length);
+        element('ns-web-rows').textContent = numberFormat.format(web.rows.length);
         element('flagged').textContent = numberFormat.format(results.length);
         element('zero').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Zero web stock').length);
         element('missing').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Missing from web').length);
@@ -373,7 +376,6 @@
     function renderNoStockRows(emptyText = 'No items with both web and shelf stock at zero') {
       renderInventoryRows(noStockRows, 'no-stock-results', emptyText);
       const webOnly = noStockRows.filter((row) => row.webOnly).length;
-      element('ns-shelf').textContent = numberFormat.format(noStockRows.length - webOnly);
       element('ns-web-only').textContent = numberFormat.format(webOnly);
       element('no-stock-showing').textContent = `${numberFormat.format(noStockRows.length)} rows`;
     }
