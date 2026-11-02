@@ -55,6 +55,7 @@
     .stat span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; }
     .stat strong { display: block; font: normal 32px/1.4 Georgia, serif; font-variant-numeric: tabular-nums; }
     .stat:nth-child(2) strong { color: var(--green); }
+    .stats.five { grid-template-columns: repeat(5, 1fr); }
     .stats.three { grid-template-columns: repeat(3, 1fr); }
     .stats.three .stat:nth-child(2) strong { color: var(--ink); }
     .stat:nth-child(4) strong { color: var(--orange); }
@@ -122,17 +123,18 @@
     </div>
     <section id="panel-flagged" class="tab-panel" role="tabpanel" aria-labelledby="tab-flagged">
       <h2 class="panel-title">Flagged web inventory</h2>
-      <section class="stats" aria-label="Comparison totals">
+      <section class="stats five" aria-label="Comparison totals">
         <div class="stat"><span>Stock rows</span><strong id="total">0</strong></div>
         <div class="stat"><span>Flagged rows</span><strong id="flagged">0</strong></div>
         <div class="stat"><span>Zero web stock</span><strong id="zero">0</strong></div>
         <div class="stat"><span>Missing from web</span><strong id="missing">0</strong></div>
+        <div class="stat"><span>Web on sale</span><strong id="sale">0</strong></div>
       </section>
       <button id="download" disabled>Download web inventory report CSV</button>
       <section aria-label="Comparison results">
         <div class="toolbar">
           <input id="search" type="search" placeholder="Search items" aria-label="Search item number or product" disabled>
-          <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option></select>
+          <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option><option value="Web on sale">Web on sale</option></select>
         </div>
         <div class="table-wrap">
           <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="5" class="empty">No comparison yet</td></tr></tbody></table>
@@ -235,7 +237,7 @@
       sosColumns = [];
       sosRows = [];
       webLookup = new Map();
-      for (const id of ['total', 'flagged', 'zero', 'missing', 'ns-shelf', 'ns-web-rows', 'ns-web-only', 'pr-compared', 'pr-diff', 'pr-skipped']) element(id).textContent = '0';
+      for (const id of ['total', 'flagged', 'zero', 'missing', 'sale', 'ns-shelf', 'ns-web-rows', 'ns-web-only', 'pr-compared', 'pr-diff', 'pr-skipped']) element(id).textContent = '0';
       for (const id of ['download', 'download-no-stock', 'download-price', 'search', 'filter']) element(id).disabled = true;
       element('download-note').hidden = true;
       element('search').value = '';
@@ -327,14 +329,13 @@
           const key = keyOf(row[itemColumn]);
           if (!key) throw new Error(`SOS row ${index + 2}: missing item number.`);
           const match = lookup.get(key);
-          if (!match || match.stock === 0) {
-            results.push({ ...row, Web_Stock: match ? match.stockText : '', Web_Status: match ? 'Zero web stock' : 'Missing from web' });
-          }
+          results.push({ ...row, Web_Stock: match ? match.stockText : '', Web_Status: !match ? 'Missing from web' : match.stock === 0 ? 'Zero web stock' : 'Web on sale' });
         }
         flaggedRows = results;
         const shelfStockColumn = sos.columnMap.get('total_stock_available');
         const shelfItemKeys = new Set(sos.rows.map((row) => keyOf(row[itemColumn])));
         noStockRows = results.filter((row) => {
+          if (row.Web_Status === 'Web on sale') return false;
           const shelfStock = String(row[shelfStockColumn] ?? '').trim();
           return shelfStock !== '' && Number.isFinite(Number(shelfStock)) && Number(shelfStock) === 0;
         });
@@ -380,7 +381,8 @@
         element('total').textContent = numberFormat.format(sos.rows.length);
         element('ns-shelf').textContent = numberFormat.format(sos.rows.length);
         element('ns-web-rows').textContent = numberFormat.format(web.rows.length);
-        element('flagged').textContent = numberFormat.format(results.length);
+        element('flagged').textContent = numberFormat.format(results.filter((row) => row.Web_Status !== 'Web on sale').length);
+        element('sale').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Web on sale').length);
         element('zero').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Zero web stock').length);
         element('missing').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Missing from web').length);
         for (const id of ['download', 'download-no-stock', 'search', 'filter']) element(id).disabled = false;
