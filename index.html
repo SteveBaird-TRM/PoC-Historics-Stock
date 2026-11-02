@@ -316,6 +316,7 @@
         const webStock = web.columnMap.get('stock');
         const webTitle = web.columnMap.get('title');
         const webPrice = web.columnMap.get('price');
+        const webLink = web.columnMap.get('link');
         for (const [index, row] of web.rows.entries()) {
           const key = keyOf(row[webId]);
           const stockText = row[webStock].trim();
@@ -323,7 +324,7 @@
           if (!key) throw new Error(`Web row ${index + 2}: missing id.`);
           if (lookup.has(key)) throw new Error(`Duplicate web id: ${row[webId]}.`);
           if (!stockText || !Number.isFinite(stock)) throw new Error(`Web row ${index + 2}: invalid stock value.`);
-          lookup.set(key, { stock, stockText, item: row[webId], title: webTitle ? row[webTitle] : '', price: webPrice ? row[webPrice] : '' });
+          lookup.set(key, { stock, stockText, item: row[webId], title: webTitle ? row[webTitle] : '', price: webPrice ? row[webPrice] : '', link: webLink ? String(row[webLink] ?? '').trim() : '' });
         }
         const itemColumn = sos.columnMap.get('item_number');
         const results = [];
@@ -561,7 +562,7 @@
       const productColumn = findColumn('product_name');
       const stockColumn = findColumn('total_stock_available');
       const rrpColumn = findColumn('rrp');
-      const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status]);
+      const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status, webLookup.get(keyOf(row[itemColumn]))?.link || '']);
       const json = JSON.stringify(data).split('<').join('\\u003c').split(String.fromCharCode(8232)).join('\\u2028').split(String.fromCharCode(8233)).join('\\u2029');
       const page = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -581,6 +582,10 @@ th { position: sticky; top: 0; background: #eef4ef; }
 .s.zero { color: #17634f; }
 .s.sale { color: #1f5fbf; }
 .empty { text-align: center; color: #5c6d67; padding: 24px; }
+.lk { width: 28px; padding-right: 0; }
+.lk a { color: #1f5fbf; display: inline-flex; vertical-align: middle; }
+.lk a:hover { color: #17634f; }
+.sr { position: absolute; left: -9999px; }
 button.sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: bold; }
 button.sort:focus-visible { outline: 2px solid #17634f; outline-offset: 2px; }
 .arrows { display: inline-flex; flex-direction: column; font-size: 8px; line-height: 8px; }
@@ -591,7 +596,7 @@ th[aria-sort="ascending"] .up, th[aria-sort="descending"] .dn { color: #202b29; 
 <h1>Web inventory report</h1>
 <div class="bar"><input id="q" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" autofocus>
 <select id="st" aria-label="Filter by status"><option value="">All statuses</option><option>Zero web stock</option><option>Missing from web</option><option>Web on sale</option></select></div>
-<div class="wrap"><table><thead><tr><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
 <div id="count"></div>
 <script>
 const data = ${json};
@@ -613,7 +618,21 @@ function render() {
   const frag = document.createDocumentFragment();
   for (const r of visible) {
     const tr = document.createElement('tr');
-    r.forEach((v, i) => {
+    const lt = document.createElement('td');
+    lt.className = 'lk';
+    const href = String(r[6]).toLowerCase();
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      const a = document.createElement('a');
+      a.href = r[6];
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = 'Open web page';
+      a.setAttribute('aria-label', 'Open web page for ' + r[0]);
+      a.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>';
+      lt.append(a);
+    }
+    tr.append(lt);
+    r.slice(0, 6).forEach((v, i) => {
       const td = document.createElement('td');
       td.textContent = v;
       td.className = i >= 2 && i <= 4 ? 'n' : i === 5 ? 's' + (v === 'Zero web stock' ? ' zero' : v === 'Web on sale' ? ' sale' : '') : '';
@@ -621,7 +640,7 @@ function render() {
     });
     frag.append(tr);
   }
-  if (!visible.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 6; td.className = 'empty'; td.textContent = 'No matching items'; tr.append(td); frag.append(tr); }
+  if (!visible.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 7; td.className = 'empty'; td.textContent = 'No matching items'; tr.append(td); frag.append(tr); }
   rows.replaceChildren(frag);
   count.textContent = visible.length.toLocaleString('en-GB') + ' of ' + data.length.toLocaleString('en-GB') + ' rows';
 }
