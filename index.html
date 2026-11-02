@@ -581,21 +581,35 @@ th { position: sticky; top: 0; background: #eef4ef; }
 .s.zero { color: #17634f; }
 .s.sale { color: #1f5fbf; }
 .empty { text-align: center; color: #5c6d67; padding: 24px; }
+button.sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: bold; }
+button.sort:focus-visible { outline: 2px solid #17634f; outline-offset: 2px; }
+.arrows { display: inline-flex; flex-direction: column; font-size: 8px; line-height: 8px; }
+.arrows span { color: #c3cdc7; }
+th[aria-sort="ascending"] .up, th[aria-sort="descending"] .dn { color: #202b29; }
 #count { margin-top: 10px; color: #5c6d67; font-size: 12px; }
 </style></head><body>
 <h1>Web inventory report</h1>
 <div class="bar"><input id="q" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" autofocus>
 <select id="st" aria-label="Filter by status"><option value="">All statuses</option><option>Zero web stock</option><option>Missing from web</option><option>Web on sale</option></select></div>
-<div class="wrap"><table><thead><tr><th>Item number</th><th>Product</th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="wrap"><table><thead><tr><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
 <div id="count"></div>
 <script>
 const data = ${json};
+let sortCol = null;
+let sortDir = 1;
 const rows = document.getElementById('rows');
 const count = document.getElementById('count');
 function render() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const st = document.getElementById('st').value;
   const visible = data.filter((r) => (!st || r[5] === st) && (!q || (r[0] + ' ' + r[1]).toLowerCase().includes(q)));
+  if (sortCol !== null) {
+    const collator = new Intl.Collator('en-GB', { numeric: true, sensitivity: 'base' });
+    visible.sort((a, b) => collator.compare(a[sortCol], b[sortCol]) * sortDir);
+  }
+  document.querySelectorAll('th[data-col]').forEach((th) => {
+    th.setAttribute('aria-sort', Number(th.dataset.col) === sortCol ? (sortDir === 1 ? 'ascending' : 'descending') : 'none');
+  });
   const frag = document.createDocumentFragment();
   for (const r of visible) {
     const tr = document.createElement('tr');
@@ -613,6 +627,13 @@ function render() {
 }
 document.getElementById('q').addEventListener('input', render);
 document.getElementById('st').addEventListener('change', render);
+document.querySelectorAll('th[data-col]').forEach((th) => {
+  th.querySelector('button').addEventListener('click', () => {
+    const col = Number(th.dataset.col);
+    if (sortCol === col) sortDir = -sortDir; else { sortCol = col; sortDir = 1; }
+    render();
+  });
+});
 render();
 <\/script></body></html>`;
       const url = URL.createObjectURL(new Blob([page], { type: 'text/html;charset=utf-8;' }));
