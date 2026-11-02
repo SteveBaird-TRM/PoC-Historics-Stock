@@ -14,7 +14,8 @@
     button { cursor: pointer; border: 1px solid var(--green); border-radius: 4px; padding: 10px 18px; background: var(--green); color: white; font-weight: bold; }
     button:hover:not(:disabled) { background: #114c3d; }
     button:disabled { cursor: not-allowed; opacity: .45; }
-    #download, #download-no-stock, #download-price { display: block; margin-left: auto; margin-bottom: 20px; }
+    #download-no-stock, #download-price { display: block; margin-left: auto; margin-bottom: 20px; }
+    .download-row { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
     .tabs { display: flex; align-items: end; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-top: 6px; }
     .tab { flex: 0 0 auto; font-size: 18px; white-space: nowrap; border-color: var(--line); border-radius: 6px 6px 0 0; margin-bottom: -1px; background: #e7ede8; color: var(--muted); }
     .tab:hover:not(:disabled) { background: #f2f6f2; color: var(--ink); }
@@ -131,7 +132,7 @@
         <div class="stat"><span>Missing from web</span><strong id="missing">0</strong></div>
         <div class="stat"><span>Web on sale</span><strong id="sale">0</strong></div>
       </section>
-      <button id="download" disabled>Download web inventory report CSV</button>
+      <div class="download-row"><button id="download" disabled>Download web inventory report CSV</button><button id="download-html" disabled>Download web inventory report HTML</button></div>
       <section aria-label="Comparison results">
         <div class="toolbar">
           <input id="search" type="search" placeholder="Search items" aria-label="Search item number or product" disabled>
@@ -239,7 +240,7 @@
       sosRows = [];
       webLookup = new Map();
       for (const id of ['total', 'flagged', 'zero', 'missing', 'sale', 'ns-shelf', 'ns-web-rows', 'ns-web-only', 'pr-compared', 'pr-diff', 'pr-skipped']) element(id).textContent = '0';
-      for (const id of ['download', 'download-no-stock', 'download-price', 'search', 'filter']) element(id).disabled = true;
+      for (const id of ['download', 'download-html', 'download-no-stock', 'download-price', 'search', 'filter']) element(id).disabled = true;
       element('download-note').hidden = true;
       element('search').value = '';
       element('lookup-search').value = '';
@@ -386,7 +387,7 @@
         element('sale').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Web on sale').length);
         element('zero').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Zero web stock').length);
         element('missing').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Missing from web').length);
-        for (const id of ['download', 'download-no-stock', 'search', 'filter']) element(id).disabled = false;
+        for (const id of ['download', 'download-html', 'download-no-stock', 'search', 'filter']) element(id).disabled = false;
         element('download-note').hidden = false;
         element('sos-status').textContent = `${sourceFiles.sos.name} / ${numberFormat.format(sos.rows.length)} rows`;
         element('web-status').textContent = `${sourceFiles.web.name} / ${numberFormat.format(web.rows.length)} rows`;
@@ -554,6 +555,75 @@
     }
 
     element('download').addEventListener('click', () => downloadRows(flaggedRows, 'sos_zero_or_missing_web_stock.csv'));
+    element('download-html').addEventListener('click', () => {
+      const findColumn = (name) => sosColumns.find((column) => column.toLowerCase() === name);
+      const itemColumn = findColumn('item_number');
+      const productColumn = findColumn('product_name');
+      const stockColumn = findColumn('total_stock_available');
+      const rrpColumn = findColumn('rrp');
+      const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status]);
+      const json = JSON.stringify(data).split('<').join('\\u003c').split(String.fromCharCode(8232)).join('\\u2028').split(String.fromCharCode(8233)).join('\\u2029');
+      const page = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historics: Web inventory report</title>
+<style>
+body { margin: 0; padding: 24px; font: 14px/1.5 system-ui, sans-serif; color: #202b29; background: #fff; }
+h1 { font: normal 24px Georgia, serif; margin: 0 0 16px; }
+.bar { display: flex; gap: 12px; flex-wrap: wrap; }
+input, select { padding: 10px 12px; font: inherit; border: 1px solid #d8e1db; border-radius: 4px; box-sizing: border-box; background: #fff; }
+input { flex: 1 1 280px; max-width: 420px; }
+.wrap { margin-top: 16px; border-block: 1px solid #d8e1db; overflow: auto; max-height: 75vh; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eef4ef; }
+th { position: sticky; top: 0; background: #eef4ef; }
+.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.s { font-size: 12px; white-space: nowrap; color: #9a4427; }
+.s.zero { color: #17634f; }
+.s.sale { color: #1f5fbf; }
+.empty { text-align: center; color: #5c6d67; padding: 24px; }
+#count { margin-top: 10px; color: #5c6d67; font-size: 12px; }
+</style></head><body>
+<h1>Web inventory report</h1>
+<div class="bar"><input id="q" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" autofocus>
+<select id="st" aria-label="Filter by status"><option value="">All statuses</option><option>Zero web stock</option><option>Missing from web</option><option>Web on sale</option></select></div>
+<div class="wrap"><table><thead><tr><th>Item number</th><th>Product</th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div id="count"></div>
+<script>
+const data = ${json};
+const rows = document.getElementById('rows');
+const count = document.getElementById('count');
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const st = document.getElementById('st').value;
+  const visible = data.filter((r) => (!st || r[5] === st) && (!q || (r[0] + ' ' + r[1]).toLowerCase().includes(q)));
+  const frag = document.createDocumentFragment();
+  for (const r of visible) {
+    const tr = document.createElement('tr');
+    r.forEach((v, i) => {
+      const td = document.createElement('td');
+      td.textContent = v;
+      td.className = i >= 2 && i <= 4 ? 'n' : i === 5 ? 's' + (v === 'Zero web stock' ? ' zero' : v === 'Web on sale' ? ' sale' : '') : '';
+      tr.append(td);
+    });
+    frag.append(tr);
+  }
+  if (!visible.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 6; td.className = 'empty'; td.textContent = 'No matching items'; tr.append(td); frag.append(tr); }
+  rows.replaceChildren(frag);
+  count.textContent = visible.length.toLocaleString('en-GB') + ' of ' + data.length.toLocaleString('en-GB') + ' rows';
+}
+document.getElementById('q').addEventListener('input', render);
+document.getElementById('st').addEventListener('change', render);
+render();
+<\/script></body></html>`;
+      const url = URL.createObjectURL(new Blob([page], { type: 'text/html;charset=utf-8;' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'sos_web_inventory_report.html';
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
     element('download-no-stock').addEventListener('click', () => downloadRows(noStockRows, 'sos_no_web_or_shelf_stock.csv'));
   </script>
 </body>
