@@ -118,6 +118,7 @@
       <button id="tab-flagged" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-flagged" tabindex="0">Flagged web inventory</button>
       <button id="tab-no-stock" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-no-stock" tabindex="-1">No web stock and no shelf stock</button>
       <button id="tab-price" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-price" tabindex="-1">Price differences</button>
+      <button id="tab-lookup" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-lookup" tabindex="-1">Stock lookup</button>
     </div>
     <section id="panel-flagged" class="tab-panel" role="tabpanel" aria-labelledby="tab-flagged">
       <h2 class="panel-title">Flagged web inventory</h2>
@@ -165,6 +166,16 @@
       </div>
       <div class="table-footer"><span id="price-showing">0 rows</span></div>
     </section>
+    <section id="panel-lookup" class="tab-panel" role="tabpanel" aria-labelledby="tab-lookup" hidden>
+      <h2 class="panel-title">Stock lookup</h2>
+      <div class="toolbar">
+        <input id="lookup-search" type="search" placeholder="Search item number or Product_Name" aria-label="Search stock on shelf by item number or Product_Name" disabled>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th></tr></thead><tbody id="lookup-results"><tr><td colspan="4" class="empty">No comparison yet</td></tr></tbody></table>
+      </div>
+      <div class="table-footer"><span id="lookup-showing">0 rows</span></div>
+    </section>
   </main>
   <script src="papaparse.min.js"></script>
   <script id="app">
@@ -174,6 +185,9 @@
     let noStockRows = [];
     let priceRows = [];
     let sosColumns = [];
+    let sosRows = [];
+    let webLookup = new Map();
+    const LOOKUP_LIMIT = 500;
     let busy = false;
     let revision = 0;
     const numberFormat = new Intl.NumberFormat('en-GB');
@@ -219,14 +233,19 @@
       noStockRows = [];
       priceRows = [];
       sosColumns = [];
+      sosRows = [];
+      webLookup = new Map();
       for (const id of ['total', 'flagged', 'zero', 'missing', 'ns-shelf', 'ns-web-rows', 'ns-web-only', 'pr-compared', 'pr-diff', 'pr-skipped']) element(id).textContent = '0';
       for (const id of ['download', 'download-no-stock', 'download-price', 'search', 'filter']) element(id).disabled = true;
       element('download-note').hidden = true;
       element('search').value = '';
+      element('lookup-search').value = '';
+      element('lookup-search').disabled = true;
       element('filter').value = 'all';
       renderRows('No comparison yet');
       renderNoStockRows('No comparison yet');
       renderPriceRows('No comparison yet');
+      renderLookup('No comparison yet');
     }
 
     function selectFiles(files) {
@@ -332,6 +351,8 @@
           noStockRows.push(row);
         }
         sosColumns = sos.columns;
+        sosRows = sos.rows;
+        webLookup = lookup;
         const rrpColumn = sos.columnMap.get('rrp');
         const sosProduct = sos.columnMap.get('product_name');
         const parsePrice = (value) => {
@@ -369,6 +390,8 @@
         renderRows();
         renderNoStockRows();
         renderPriceRows();
+        element('lookup-search').disabled = false;
+        renderLookup();
         const missingPrice = [!rrpColumn && 'rrp (shelf file)', !webPrice && 'price (web file)'].filter(Boolean);
         if (missingPrice.length) notify(`Comparison complete. Price comparison skipped: missing column ${missingPrice.join(' and ')}.`, true);
         else notify('Comparison complete.');
@@ -468,6 +491,49 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
 
+    function renderLookup(emptyText = 'No matching items') {
+      const query = element('lookup-search').value.trim().toLowerCase();
+      const fragment = document.createDocumentFragment();
+      let shown = 0;
+      let total = 0;
+      let message = emptyText;
+      if (sosRows.length && !query) message = 'Type an item number or product name to search';
+      if (query) {
+        const findColumn = (name) => sosColumns.find((column) => column.toLowerCase() === name);
+        const itemColumn = findColumn('item_number');
+        const productColumn = findColumn('product_name');
+        const stockColumn = findColumn('total_stock_available');
+        for (const row of sosRows) {
+          if (!`${row[itemColumn]} ${row[productColumn] || ''}`.toLowerCase().includes(query)) continue;
+          total++;
+          if (shown >= LOOKUP_LIMIT) continue;
+          shown++;
+          const match = webLookup.get(keyOf(row[itemColumn]));
+          const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || '', match ? match.stockText : '-'];
+          const classes = ['item', 'product', 'numeric', 'numeric'];
+          const tableRow = document.createElement('tr');
+          values.forEach((value, index) => {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            cell.className = classes[index];
+            tableRow.append(cell);
+          });
+          fragment.append(tableRow);
+        }
+      }
+      if (!shown) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 4;
+        cell.className = 'empty';
+        cell.textContent = message;
+        row.append(cell);
+        fragment.append(row);
+      }
+      element('lookup-results').replaceChildren(fragment);
+      element('lookup-showing').textContent = query ? `${numberFormat.format(shown)} of ${numberFormat.format(total)} matches${total > shown ? ` (first ${LOOKUP_LIMIT} shown)` : ''}` : `${numberFormat.format(sosRows.length)} shelf rows loaded`;
+    }
+    element('lookup-search').addEventListener('input', () => renderLookup());
     element('search').addEventListener('input', () => renderRows());
     element('filter').addEventListener('change', () => renderRows());
     function downloadRows(rows, filename) {
