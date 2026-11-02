@@ -73,6 +73,7 @@
     .numeric { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .status { font-size: 12px; white-space: nowrap; color: var(--orange); }
     .status.zero { color: var(--green); }
+    .status.sale { color: #1f5fbf; }
     tbody tr:hover { background: #f6f9f6; }
     .empty { text-align: center; padding: 54px 20px; color: var(--muted); }
     .table-footer { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; color: var(--muted); font-size: 12px; }
@@ -414,7 +415,7 @@
       for (const row of rows) {
         const tableRow = document.createElement('tr');
         const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status];
-        const classes = ['item', 'product', 'numeric', 'numeric', row.Web_Status === 'Zero web stock' ? 'status zero' : 'status'];
+        const classes = ['item', 'product', 'numeric', 'numeric', row.Web_Status === 'Zero web stock' ? 'status zero' : row.Web_Status === 'Web on sale' ? 'status sale' : 'status'];
         values.forEach((value, index) => {
           const cell = document.createElement('td');
           cell.textContent = value;
