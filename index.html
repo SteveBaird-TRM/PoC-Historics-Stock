@@ -566,12 +566,16 @@
       const rrpColumn = findColumn('rrp');
       const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status, webLookup.get(keyOf(row[itemColumn]))?.link || '']);
       const json = JSON.stringify(data).split('<').join('\\u003c').split(String.fromCharCode(8232)).join('\\u2028').split(String.fromCharCode(8233)).join('\\u2029');
+      const generatedAt = new Date();
+      const timestamp = generatedAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
       const page = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Historics: Web inventory report</title>
 <style>
 body { margin: 0; padding: 24px; font: 14px/1.5 system-ui, sans-serif; color: #202b29; background: #fff; }
-h1 { font: normal 24px Georgia, serif; margin: 0 0 16px; }
+.report-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 16px; }
+h1 { font: normal 24px Georgia, serif; margin: 0; }
+.generated-at { margin-left: auto; color: #202b29; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .bar { display: flex; gap: 12px; flex-wrap: wrap; }
 input, select { padding: 10px 12px; font: inherit; border: 1px solid #d8e1db; border-radius: 4px; box-sizing: border-box; background: #fff; }
 input { flex: 1 1 280px; max-width: 420px; }
@@ -595,7 +599,7 @@ button.sort:focus-visible { outline: 2px solid #17634f; outline-offset: 2px; }
 th[aria-sort="ascending"] .up, th[aria-sort="descending"] .dn { color: #202b29; }
 #count { margin-top: 10px; color: #5c6d67; font-size: 12px; }
 </style></head><body>
-<h1>Web inventory report</h1>
+<header class="report-header"><h1>Web inventory report</h1><time class="generated-at" datetime="${generatedAt.toISOString()}">Generated: ${timestamp}</time></header>
 <div class="bar"><input id="q" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" autofocus>
 <select id="st" aria-label="Filter by status"><option value="">All statuses</option><option>Zero web stock</option><option>Missing from web</option><option>Web on sale</option></select></div>
 <div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
