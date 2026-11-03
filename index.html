@@ -145,7 +145,7 @@
           <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option><option value="Web on sale">Web on sale</option></select>
         </div>
         <div class="table-wrap">
-          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th class="numeric" scope="col">Reserved stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="6" class="empty">No comparison yet</td></tr></tbody></table>
+          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th class="numeric" scope="col">Reserved stock</th><th class="numeric" scope="col">Available stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="7" class="empty">No comparison yet</td></tr></tbody></table>
         </div>
         <div class="table-footer"><span id="showing">0 rows</span><span id="download-note" hidden>CSV includes all flagged rows</span></div>
       </section>
@@ -182,7 +182,7 @@
         <input id="lookup-search" type="search" placeholder="Search item number or Product_Name" aria-label="Search stock on shelf by item number or Product_Name" disabled>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th></tr></thead><tbody id="lookup-results"><tr><td colspan="4" class="empty">No comparison yet</td></tr></tbody></table>
+        <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th class="numeric" scope="col">Reserved stock</th><th class="numeric" scope="col">Available stock</th></tr></thead><tbody id="lookup-results"><tr><td colspan="6" class="empty">No comparison yet</td></tr></tbody></table>
       </div>
       <div class="table-footer"><span id="lookup-showing">0 rows</span></div>
     </section>
@@ -316,7 +316,7 @@
       try {
         const [sos, web] = await Promise.all([readCSV(sourceFiles.sos, ['item_number', 'total_stock_available']), readCSV(sourceFiles.web, ['id', 'stock'])]);
         if (currentRevision !== revision) return;
-        for (const column of ['web_stock', 'web_status', 'reserved_stock']) {
+        for (const column of ['web_stock', 'web_status', 'reserved_stock', 'available_stock']) {
           if (sos.columnMap.has(column)) throw new Error(`SOS already contains a reserved output column: ${column}.`);
         }
         const reservedLookup = new Map();
@@ -355,7 +355,10 @@
           const key = keyOf(row[itemColumn]);
           if (!key) throw new Error(`SOS row ${index + 2}: missing item number.`);
           const match = lookup.get(key);
-          results.push({ ...row, Reserved_Stock: sourceFiles.reserved ? String(reservedLookup.get(key) ?? 0) : '', Web_Stock: match ? match.stockText : '', Web_Status: !match ? 'Missing from web' : match.stock === 0 ? 'Zero web stock' : 'Web on sale' });
+          const reservedQty = sourceFiles.reserved ? (reservedLookup.get(key) ?? 0) : null;
+          const shelfText = String(row[sos.columnMap.get('total_stock_available')] ?? '').replace(/,/g, '').trim();
+          const shelfQty = shelfText !== '' && Number.isFinite(Number(shelfText)) ? Number(shelfText) : null;
+          results.push({ ...row, Reserved_Stock: reservedQty === null ? '' : String(reservedQty), Available_Stock: reservedQty === null || shelfQty === null ? '' : String(shelfQty - reservedQty), Web_Stock: match ? match.stockText : '', Web_Status: !match ? 'Missing from web' : match.stock === 0 ? 'Zero web stock' : 'Web on sale' });
         }
         flaggedRows = results;
         const shelfStockColumn = sos.columnMap.get('total_stock_available');
@@ -444,7 +447,7 @@
         const classes = ['item', 'product', 'numeric'];
         values.push(row.Web_Stock === '' ? '-' : row.Web_Stock);
         classes.push('numeric');
-        if (withReserved) { values.push(row.Reserved_Stock === '' || row.Reserved_Stock === undefined ? '-' : row.Reserved_Stock); classes.push('numeric'); }
+        if (withReserved) { for (const v of [row.Reserved_Stock, row.Available_Stock]) { values.push(v === '' || v === undefined ? '-' : v); classes.push('numeric'); } }
         values.push(row.Web_Status);
         classes.push(row.Web_Status === 'Zero web stock' ? 'status zero' : row.Web_Status === 'Web on sale' ? 'status sale' : 'status');
         values.forEach((value, index) => {
@@ -458,7 +461,7 @@
       if (!rows.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = withReserved ? 6 : 5;
+        cell.colSpan = withReserved ? 7 : 5;
         cell.className = 'empty';
         cell.textContent = emptyText;
         row.append(cell);
@@ -537,14 +540,16 @@
         const itemColumn = findColumn('item_number');
         const productColumn = findColumn('product_name');
         const stockColumn = findColumn('total_stock_available');
-        for (const row of sosRows) {
+        for (const [rowIndex, row] of sosRows.entries()) {
           if (!`${row[itemColumn]} ${row[productColumn] || ''}`.toLowerCase().includes(query)) continue;
           total++;
           if (shown >= LOOKUP_LIMIT) continue;
           shown++;
           const match = webLookup.get(keyOf(row[itemColumn]));
-          const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || '', match ? match.stockText : '-'];
-          const classes = ['item', 'product', 'numeric', 'numeric'];
+          const flagged = flaggedRows[rowIndex] || {};
+          const dash = (v) => (v === '' || v === undefined ? '-' : v);
+          const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || '', match ? match.stockText : '-', dash(flagged.Reserved_Stock), dash(flagged.Available_Stock)];
+          const classes = ['item', 'product', 'numeric', 'numeric', 'numeric', 'numeric'];
           const tableRow = document.createElement('tr');
           values.forEach((value, index) => {
             const cell = document.createElement('td');
@@ -558,7 +563,7 @@
       if (!shown) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = 4;
+        cell.colSpan = 6;
         cell.className = 'empty';
         cell.textContent = message;
         row.append(cell);
@@ -572,7 +577,7 @@
     element('filter').addEventListener('change', () => renderRows());
     function downloadRows(rows, filename) {
       const shelfIdx = sosColumns.findIndex((column) => column.toLowerCase() === 'total_stock_available');
-      const columns = [...sosColumns.slice(0, shelfIdx + 1), 'Web_Stock', 'Reserved_Stock', ...sosColumns.slice(shelfIdx + 1), 'Web_Status'];
+      const columns = [...sosColumns.slice(0, shelfIdx + 1), 'Web_Stock', 'Reserved_Stock', 'Available_Stock', ...sosColumns.slice(shelfIdx + 1), 'Web_Status'];
       const csv = Papa.unparse({ fields: columns, data: rows.map((row) => columns.map((column) => row[column])) }, { escapeFormulae: true });
       const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -592,7 +597,7 @@
       const productColumn = findColumn('product_name');
       const stockColumn = findColumn('total_stock_available');
       const rrpColumn = findColumn('rrp');
-      const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Reserved_Stock === '' || row.Reserved_Stock === undefined ? '-' : row.Reserved_Stock, row.Web_Status, webLookup.get(keyOf(row[itemColumn]))?.link || '']);
+      const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Reserved_Stock === '' || row.Reserved_Stock === undefined ? '-' : row.Reserved_Stock, row.Available_Stock === '' || row.Available_Stock === undefined ? '-' : row.Available_Stock, row.Web_Status, webLookup.get(keyOf(row[itemColumn]))?.link || '']);
       const json = JSON.stringify(data).split('<').join('\\u003c').split(String.fromCharCode(8232)).join('\\u2028').split(String.fromCharCode(8233)).join('\\u2029');
       const generatedAt = new Date();
       const timestamp = generatedAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
@@ -630,7 +635,7 @@ th[aria-sort="ascending"] .up, th[aria-sort="descending"] .dn { color: #202b29; 
 <header class="report-header"><h1>Web inventory report</h1><time class="generated-at" datetime="${generatedAt.toISOString()}">Generated: ${timestamp}</time></header>
 <div class="bar"><input id="q" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" autofocus>
 <select id="st" aria-label="Filter by status"><option value="">All statuses</option><option>Zero web stock</option><option>Missing from web</option><option>Web on sale</option></select></div>
-<div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th class="n">Reserved stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th class="n">Reserved stock</th><th class="n">Available stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
 <div id="count"></div>
 <script>
 const data = ${json};
@@ -641,7 +646,7 @@ const count = document.getElementById('count');
 function render() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const st = document.getElementById('st').value;
-  const visible = data.filter((r) => (!st || r[6] === st) && (!q || (r[0] + ' ' + r[1]).toLowerCase().includes(q)));
+  const visible = data.filter((r) => (!st || r[7] === st) && (!q || (r[0] + ' ' + r[1]).toLowerCase().includes(q)));
   if (sortCol !== null) {
     const collator = new Intl.Collator('en-GB', { numeric: true, sensitivity: 'base' });
     visible.sort((a, b) => collator.compare(a[sortCol], b[sortCol]) * sortDir);
@@ -654,10 +659,10 @@ function render() {
     const tr = document.createElement('tr');
     const lt = document.createElement('td');
     lt.className = 'lk';
-    const href = String(r[7]).toLowerCase();
+    const href = String(r[8]).toLowerCase();
     if (href.startsWith('http://') || href.startsWith('https://')) {
       const a = document.createElement('a');
-      a.href = r[7];
+      a.href = r[8];
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       a.title = 'Open web page';
@@ -666,15 +671,15 @@ function render() {
       lt.append(a);
     }
     tr.append(lt);
-    r.slice(0, 7).forEach((v, i) => {
+    r.slice(0, 8).forEach((v, i) => {
       const td = document.createElement('td');
       td.textContent = v;
-      td.className = i >= 2 && i <= 5 ? 'n' : i === 6 ? 's' + (v === 'Zero web stock' ? ' zero' : v === 'Web on sale' ? ' sale' : '') : '';
+      td.className = i >= 2 && i <= 6 ? 'n' : i === 7 ? 's' + (v === 'Zero web stock' ? ' zero' : v === 'Web on sale' ? ' sale' : '') : '';
       tr.append(td);
     });
     frag.append(tr);
   }
-  if (!visible.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8; td.className = 'empty'; td.textContent = 'No matching items'; tr.append(td); frag.append(tr); }
+  if (!visible.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 9; td.className = 'empty'; td.textContent = 'No matching items'; tr.append(td); frag.append(tr); }
   rows.replaceChildren(frag);
   count.textContent = visible.length.toLocaleString('en-GB') + ' of ' + data.length.toLocaleString('en-GB') + ' rows';
 }
