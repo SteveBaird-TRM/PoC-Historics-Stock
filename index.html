@@ -32,7 +32,7 @@
     main { max-width: 1320px; margin: auto; padding: 32px; }
     .heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 24px; }
     h1 { margin: 0; font: normal 34px/1.2 Georgia, serif; }
-    .sources { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .sources { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
     .source { min-width: 0; border: 1px solid var(--line); background: white; border-radius: 6px; padding: 22px; }
     .source-heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
     .source label { font-weight: bold; font-size: 18px; }
@@ -112,6 +112,10 @@
         <input id="web" type="file" accept=".csv,text/csv"><p class="file-status" id="web-status">No file selected</p>
         <a class="source-link" href="https://docs.google.com/spreadsheets/d/1MvUfg4YzxkOPX3GtowwI0KTKedjaPxFEQPweqBQ4E0o/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer">Source Data (will need downloading as CSV)</a>
       </div>
+      <div class="source">
+        <div class="source-heading"><label for="reserved">Reserved stock file (csv, optional)</label><span>Item number / Physical reserved</span></div>
+        <input id="reserved" type="file" accept=".csv,text/csv"><p class="file-status" id="reserved-status">No file selected</p>
+      </div>
     </section>
     <div class="actions">
       <div class="folder" hidden><label for="folder">Or select a folder</label><input id="folder" type="file" webkitdirectory multiple></div>
@@ -141,7 +145,7 @@
           <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option><option value="Web on sale">Web on sale</option></select>
         </div>
         <div class="table-wrap">
-          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="5" class="empty">No comparison yet</td></tr></tbody></table>
+          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Reserved</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="6" class="empty">No comparison yet</td></tr></tbody></table>
         </div>
         <div class="table-footer"><span id="showing">0 rows</span><span id="download-note" hidden>CSV includes all flagged rows</span></div>
       </section>
@@ -186,7 +190,7 @@
   <script src="papaparse.min.js"></script>
   <script id="app">
     const element = (id) => document.getElementById(id);
-    const sourceFiles = { sos: null, web: null };
+    const sourceFiles = { sos: null, web: null, reserved: null };
     let flaggedRows = [];
     let noStockRows = [];
     let priceRows = [];
@@ -257,7 +261,7 @@
     function selectFiles(files) {
       revision++;
       Object.assign(sourceFiles, files);
-      for (const kind of ['sos', 'web']) {
+      for (const kind of ['sos', 'web', 'reserved']) {
         element(`${kind}-status`).textContent = sourceFiles[kind] ? sourceFiles[kind].name : 'No file selected';
       }
       clearResults();
@@ -265,7 +269,7 @@
       updateCompare();
     }
 
-    for (const kind of ['sos', 'web']) {
+    for (const kind of ['sos', 'web', 'reserved']) {
       element(kind).addEventListener('change', (event) => selectFiles({ [kind]: event.target.files[0] || null }));
     }
 
@@ -276,13 +280,15 @@
       const sosMatches = matches('sos.csv');
       const webMatches = matches('web.csv');
       if (sosMatches.length !== 1 || webMatches.length !== 1) {
-        selectFiles({ sos: null, web: null });
+        selectFiles({ sos: null, web: null, reserved: null });
         notify('The selected folder must contain exactly one sos.csv and one web.csv.', true);
         return;
       }
       element('sos').value = '';
       element('web').value = '';
-      selectFiles({ sos: sosMatches[0], web: webMatches[0] });
+      element('reserved').value = '';
+      const reservedMatches = matches('reserved.csv');
+      selectFiles({ sos: sosMatches[0], web: webMatches[0], reserved: reservedMatches.length === 1 ? reservedMatches[0] : null });
     });
 
     async function readCSV(file, required) {
@@ -310,8 +316,23 @@
       try {
         const [sos, web] = await Promise.all([readCSV(sourceFiles.sos, ['item_number', 'total_stock_available']), readCSV(sourceFiles.web, ['id', 'stock'])]);
         if (currentRevision !== revision) return;
-        for (const column of ['web_stock', 'web_status']) {
+        for (const column of ['web_stock', 'web_status', 'reserved_stock']) {
           if (sos.columnMap.has(column)) throw new Error(`SOS already contains a reserved output column: ${column}.`);
+        }
+        const reservedLookup = new Map();
+        if (sourceFiles.reserved) {
+          const reserved = await readCSV(sourceFiles.reserved, ['item number', 'physical reserved']);
+          if (currentRevision !== revision) return;
+          const resItem = reserved.columnMap.get('item number');
+          const resQty = reserved.columnMap.get('physical reserved');
+          for (const [index, row] of reserved.rows.entries()) {
+            const key = keyOf(row[resItem]);
+            if (!key) continue;
+            const text = String(row[resQty] ?? '').replace(/,/g, '').trim();
+            const qty = text === '' ? 0 : Number(text);
+            if (!Number.isFinite(qty)) throw new Error(`${sourceFiles.reserved.name} row ${index + 2}: invalid Physical reserved value.`);
+            reservedLookup.set(key, (reservedLookup.get(key) || 0) + qty);
+          }
         }
         const lookup = new Map();
         const webId = web.columnMap.get('id');
@@ -334,7 +355,7 @@
           const key = keyOf(row[itemColumn]);
           if (!key) throw new Error(`SOS row ${index + 2}: missing item number.`);
           const match = lookup.get(key);
-          results.push({ ...row, Web_Stock: match ? match.stockText : '', Web_Status: !match ? 'Missing from web' : match.stock === 0 ? 'Zero web stock' : 'Web on sale' });
+          results.push({ ...row, Reserved_Stock: sourceFiles.reserved ? String(reservedLookup.get(key) ?? 0) : '', Web_Stock: match ? match.stockText : '', Web_Status: !match ? 'Missing from web' : match.stock === 0 ? 'Zero web stock' : 'Web on sale' });
         }
         flaggedRows = results;
         const shelfStockColumn = sos.columnMap.get('total_stock_available');
@@ -394,6 +415,7 @@
         element('download-note').hidden = false;
         element('sos-status').textContent = `${sourceFiles.sos.name} / ${numberFormat.format(sos.rows.length)} rows`;
         element('web-status').textContent = `${sourceFiles.web.name} / ${numberFormat.format(web.rows.length)} rows`;
+        if (sourceFiles.reserved) element('reserved-status').textContent = `${sourceFiles.reserved.name} / ${numberFormat.format(reservedLookup.size)} items`;
         renderRows();
         renderNoStockRows();
         renderPriceRows();
@@ -410,7 +432,7 @@
       }
     });
 
-    function renderInventoryRows(rows, targetId, emptyText) {
+    function renderInventoryRows(rows, targetId, emptyText, withReserved = false) {
       const findColumn = (name) => sosColumns.find((column) => column.toLowerCase() === name);
       const itemColumn = findColumn('item_number');
       const productColumn = findColumn('product_name');
@@ -418,8 +440,11 @@
       const fragment = document.createDocumentFragment();
       for (const row of rows) {
         const tableRow = document.createElement('tr');
-        const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status];
-        const classes = ['item', 'product', 'numeric', 'numeric', row.Web_Status === 'Zero web stock' ? 'status zero' : row.Web_Status === 'Web on sale' ? 'status sale' : 'status'];
+        const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || ''];
+        const classes = ['item', 'product', 'numeric'];
+        if (withReserved) { values.push(row.Reserved_Stock === '' || row.Reserved_Stock === undefined ? '-' : row.Reserved_Stock); classes.push('numeric'); }
+        values.push(row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status);
+        classes.push('numeric', row.Web_Status === 'Zero web stock' ? 'status zero' : row.Web_Status === 'Web on sale' ? 'status sale' : 'status');
         values.forEach((value, index) => {
           const cell = document.createElement('td');
           cell.textContent = value;
@@ -431,7 +456,7 @@
       if (!rows.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = 5;
+        cell.colSpan = withReserved ? 6 : 5;
         cell.className = 'empty';
         cell.textContent = emptyText;
         row.append(cell);
@@ -446,7 +471,7 @@
       const itemColumn = sosColumns.find((column) => column.toLowerCase() === 'item_number');
       const productColumn = sosColumns.find((column) => column.toLowerCase() === 'product_name');
       const visible = flaggedRows.filter((row) => (status === 'all' || row.Web_Status === status) && (!query || `${row[itemColumn]} ${row[productColumn] || ''}`.toLowerCase().includes(query)));
-      renderInventoryRows(visible, 'results', emptyText);
+      renderInventoryRows(visible, 'results', emptyText, true);
       element('showing').textContent = `${numberFormat.format(visible.length)} of ${numberFormat.format(flaggedRows.length)} rows`;
     }
 
@@ -544,7 +569,7 @@
     element('search').addEventListener('input', () => renderRows());
     element('filter').addEventListener('change', () => renderRows());
     function downloadRows(rows, filename) {
-      const columns = [...sosColumns, 'Web_Stock', 'Web_Status'];
+      const columns = [...sosColumns, 'Reserved_Stock', 'Web_Stock', 'Web_Status'];
       const csv = Papa.unparse({ fields: columns, data: rows.map((row) => columns.map((column) => row[column])) }, { escapeFormulae: true });
       const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -564,7 +589,7 @@
       const productColumn = findColumn('product_name');
       const stockColumn = findColumn('total_stock_available');
       const rrpColumn = findColumn('rrp');
-      const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status, webLookup.get(keyOf(row[itemColumn]))?.link || '']);
+      const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Reserved_Stock === '' || row.Reserved_Stock === undefined ? '-' : row.Reserved_Stock, row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status, webLookup.get(keyOf(row[itemColumn]))?.link || '']);
       const json = JSON.stringify(data).split('<').join('\\u003c').split(String.fromCharCode(8232)).join('\\u2028').split(String.fromCharCode(8233)).join('\\u2029');
       const generatedAt = new Date();
       const timestamp = generatedAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
@@ -602,7 +627,7 @@ th[aria-sort="ascending"] .up, th[aria-sort="descending"] .dn { color: #202b29; 
 <header class="report-header"><h1>Web inventory report</h1><time class="generated-at" datetime="${generatedAt.toISOString()}">Generated: ${timestamp}</time></header>
 <div class="bar"><input id="q" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" autofocus>
 <select id="st" aria-label="Filter by status"><option value="">All statuses</option><option>Zero web stock</option><option>Missing from web</option><option>Web on sale</option></select></div>
-<div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Reserved</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
 <div id="count"></div>
 <script>
 const data = ${json};
@@ -613,7 +638,7 @@ const count = document.getElementById('count');
 function render() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   const st = document.getElementById('st').value;
-  const visible = data.filter((r) => (!st || r[5] === st) && (!q || (r[0] + ' ' + r[1]).toLowerCase().includes(q)));
+  const visible = data.filter((r) => (!st || r[6] === st) && (!q || (r[0] + ' ' + r[1]).toLowerCase().includes(q)));
   if (sortCol !== null) {
     const collator = new Intl.Collator('en-GB', { numeric: true, sensitivity: 'base' });
     visible.sort((a, b) => collator.compare(a[sortCol], b[sortCol]) * sortDir);
@@ -626,10 +651,10 @@ function render() {
     const tr = document.createElement('tr');
     const lt = document.createElement('td');
     lt.className = 'lk';
-    const href = String(r[6]).toLowerCase();
+    const href = String(r[7]).toLowerCase();
     if (href.startsWith('http://') || href.startsWith('https://')) {
       const a = document.createElement('a');
-      a.href = r[6];
+      a.href = r[7];
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       a.title = 'Open web page';
@@ -638,15 +663,15 @@ function render() {
       lt.append(a);
     }
     tr.append(lt);
-    r.slice(0, 6).forEach((v, i) => {
+    r.slice(0, 7).forEach((v, i) => {
       const td = document.createElement('td');
       td.textContent = v;
-      td.className = i >= 2 && i <= 4 ? 'n' : i === 5 ? 's' + (v === 'Zero web stock' ? ' zero' : v === 'Web on sale' ? ' sale' : '') : '';
+      td.className = i >= 2 && i <= 5 ? 'n' : i === 6 ? 's' + (v === 'Zero web stock' ? ' zero' : v === 'Web on sale' ? ' sale' : '') : '';
       tr.append(td);
     });
     frag.append(tr);
   }
-  if (!visible.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 7; td.className = 'empty'; td.textContent = 'No matching items'; tr.append(td); frag.append(tr); }
+  if (!visible.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8; td.className = 'empty'; td.textContent = 'No matching items'; tr.append(td); frag.append(tr); }
   rows.replaceChildren(frag);
   count.textContent = visible.length.toLocaleString('en-GB') + ' of ' + data.length.toLocaleString('en-GB') + ' rows';
 }
