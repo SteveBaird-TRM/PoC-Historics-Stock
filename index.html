@@ -14,7 +14,8 @@
     button { cursor: pointer; border: 1px solid var(--green); border-radius: 4px; padding: 10px 18px; background: var(--green); color: white; font-weight: bold; }
     button:hover:not(:disabled) { background: #114c3d; }
     button:disabled { cursor: not-allowed; opacity: .45; }
-    #download, #download-no-stock, #download-price { display: block; margin-left: auto; margin-bottom: 20px; }
+    #download-no-stock, #download-price { display: block; margin-left: auto; margin-bottom: 20px; }
+    .download-row { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
     .tabs { display: flex; align-items: end; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-top: 6px; }
     .tab { flex: 0 0 auto; font-size: 18px; white-space: nowrap; border-color: var(--line); border-radius: 6px 6px 0 0; margin-bottom: -1px; background: #e7ede8; color: var(--muted); }
     .tab:hover:not(:disabled) { background: #f2f6f2; color: var(--ink); }
@@ -39,9 +40,10 @@
     input[type=file] { width: 100%; min-width: 0; color: var(--muted); font-size: 13px; }
     input::file-selector-button { padding: 9px 12px; margin-right: 12px; background: var(--wash); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); cursor: pointer; font: inherit; }
     .file-status { margin: 16px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; min-height: 20px; }
-    .source-link { display: inline-block; margin-top: 10px; color: #0645ad; font-size: 13px; }
     .actions { padding: 20px 0 26px; display: flex; gap: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+    .actions #compare { margin-left: auto; }
     .folder { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .folder[hidden] { display: none; }
     .folder label { white-space: nowrap; font-weight: bold; font-size: 13px; }
     .folder input { max-width: 270px; }
     #message { border-left: 3px solid var(--green); padding: 12px 16px; margin: 0 0 24px; background: var(--wash); overflow-wrap: anywhere; }
@@ -54,6 +56,7 @@
     .stat span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; }
     .stat strong { display: block; font: normal 32px/1.4 Georgia, serif; font-variant-numeric: tabular-nums; }
     .stat:nth-child(2) strong { color: var(--green); }
+    .stats.five { grid-template-columns: repeat(5, 1fr); }
     .stats.three { grid-template-columns: repeat(3, 1fr); }
     .stats.three .stat:nth-child(2) strong { color: var(--ink); }
     .stat:nth-child(4) strong { color: var(--orange); }
@@ -71,6 +74,7 @@
     .numeric { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .status { font-size: 12px; white-space: nowrap; color: var(--orange); }
     .status.zero { color: var(--green); }
+    .status.sale { color: #1f5fbf; }
     tbody tr:hover { background: #f6f9f6; }
     .empty { text-align: center; padding: 54px 20px; color: var(--muted); }
     .table-footer { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; color: var(--muted); font-size: 12px; }
@@ -105,33 +109,34 @@
       <div class="source">
         <div class="source-heading"><label for="web">Web inventory file (csv)</label><span>id / stock</span></div>
         <input id="web" type="file" accept=".csv,text/csv"><p class="file-status" id="web-status">No file selected</p>
-        <a class="source-link" href="https://docs.google.com/spreadsheets/d/1MvUfg4YzxkOPX3GtowwI0KTKedjaPxFEQPweqBQ4E0o/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer">Source Data (will need downloading as CSV)</a>
       </div>
     </section>
     <div class="actions">
-      <div class="folder"><label for="folder">Or select a folder</label><input id="folder" type="file" webkitdirectory multiple></div>
+      <div class="folder" hidden><label for="folder">Or select a folder</label><input id="folder" type="file" webkitdirectory multiple></div>
       <button id="compare" disabled>Compare stock</button>
     </div>
     <p id="message" role="status" aria-live="polite" hidden></p>
     <div class="heading"><h1>Step 2: Comparison</h1></div>
     <div class="tabs" role="tablist" aria-label="Stock comparisons">
-      <button id="tab-flagged" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-flagged" tabindex="0">Flagged web inventory</button>
+      <button id="tab-flagged" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-flagged" tabindex="0">Inventory Status</button>
       <button id="tab-no-stock" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-no-stock" tabindex="-1">No web stock and no shelf stock</button>
       <button id="tab-price" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-price" tabindex="-1">Price differences</button>
+      <button id="tab-lookup" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-lookup" tabindex="-1">Stock lookup</button>
     </div>
     <section id="panel-flagged" class="tab-panel" role="tabpanel" aria-labelledby="tab-flagged">
-      <h2 class="panel-title">Flagged web inventory</h2>
-      <section class="stats" aria-label="Comparison totals">
+      <h2 class="panel-title">Inventory Status</h2>
+      <section class="stats five" aria-label="Comparison totals">
         <div class="stat"><span>Stock rows</span><strong id="total">0</strong></div>
         <div class="stat"><span>Flagged rows</span><strong id="flagged">0</strong></div>
         <div class="stat"><span>Zero web stock</span><strong id="zero">0</strong></div>
         <div class="stat"><span>Missing from web</span><strong id="missing">0</strong></div>
+        <div class="stat"><span>Web on sale</span><strong id="sale">0</strong></div>
       </section>
-      <button id="download" disabled>Download web inventory report CSV</button>
+      <div class="download-row"><button id="download" disabled>Download web inventory report CSV</button><button id="download-html" disabled>Download web inventory report HTML</button></div>
       <section aria-label="Comparison results">
         <div class="toolbar">
           <input id="search" type="search" placeholder="Search items" aria-label="Search item number or product" disabled>
-          <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option></select>
+          <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option><option value="Web on sale">Web on sale</option></select>
         </div>
         <div class="table-wrap">
           <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="5" class="empty">No comparison yet</td></tr></tbody></table>
@@ -165,6 +170,16 @@
       </div>
       <div class="table-footer"><span id="price-showing">0 rows</span></div>
     </section>
+    <section id="panel-lookup" class="tab-panel" role="tabpanel" aria-labelledby="tab-lookup" hidden>
+      <h2 class="panel-title">Stock lookup</h2>
+      <div class="toolbar">
+        <input id="lookup-search" type="search" placeholder="Search item number or Product_Name" aria-label="Search stock on shelf by item number or Product_Name" disabled>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th></tr></thead><tbody id="lookup-results"><tr><td colspan="4" class="empty">No comparison yet</td></tr></tbody></table>
+      </div>
+      <div class="table-footer"><span id="lookup-showing">0 rows</span></div>
+    </section>
   </main>
   <script src="papaparse.min.js"></script>
   <script id="app">
@@ -174,6 +189,9 @@
     let noStockRows = [];
     let priceRows = [];
     let sosColumns = [];
+    let sosRows = [];
+    let webLookup = new Map();
+    const LOOKUP_LIMIT = 500;
     let busy = false;
     let revision = 0;
     const numberFormat = new Intl.NumberFormat('en-GB');
@@ -219,14 +237,19 @@
       noStockRows = [];
       priceRows = [];
       sosColumns = [];
-      for (const id of ['total', 'flagged', 'zero', 'missing', 'ns-shelf', 'ns-web-rows', 'ns-web-only', 'pr-compared', 'pr-diff', 'pr-skipped']) element(id).textContent = '0';
-      for (const id of ['download', 'download-no-stock', 'download-price', 'search', 'filter']) element(id).disabled = true;
+      sosRows = [];
+      webLookup = new Map();
+      for (const id of ['total', 'flagged', 'zero', 'missing', 'sale', 'ns-shelf', 'ns-web-rows', 'ns-web-only', 'pr-compared', 'pr-diff', 'pr-skipped']) element(id).textContent = '0';
+      for (const id of ['download', 'download-html', 'download-no-stock', 'download-price', 'search', 'filter']) element(id).disabled = true;
       element('download-note').hidden = true;
       element('search').value = '';
+      element('lookup-search').value = '';
+      element('lookup-search').disabled = true;
       element('filter').value = 'all';
       renderRows('No comparison yet');
       renderNoStockRows('No comparison yet');
       renderPriceRows('No comparison yet');
+      renderLookup('No comparison yet');
     }
 
     function selectFiles(files) {
@@ -293,6 +316,7 @@
         const webStock = web.columnMap.get('stock');
         const webTitle = web.columnMap.get('title');
         const webPrice = web.columnMap.get('price');
+        const webLink = web.columnMap.get('link');
         for (const [index, row] of web.rows.entries()) {
           const key = keyOf(row[webId]);
           const stockText = row[webStock].trim();
@@ -300,7 +324,7 @@
           if (!key) throw new Error(`Web row ${index + 2}: missing id.`);
           if (lookup.has(key)) throw new Error(`Duplicate web id: ${row[webId]}.`);
           if (!stockText || !Number.isFinite(stock)) throw new Error(`Web row ${index + 2}: invalid stock value.`);
-          lookup.set(key, { stock, stockText, item: row[webId], title: webTitle ? row[webTitle] : '', price: webPrice ? row[webPrice] : '' });
+          lookup.set(key, { stock, stockText, item: row[webId], title: webTitle ? row[webTitle] : '', price: webPrice ? row[webPrice] : '', link: webLink ? String(row[webLink] ?? '').trim() : '' });
         }
         const itemColumn = sos.columnMap.get('item_number');
         const results = [];
@@ -308,14 +332,13 @@
           const key = keyOf(row[itemColumn]);
           if (!key) throw new Error(`SOS row ${index + 2}: missing item number.`);
           const match = lookup.get(key);
-          if (!match || match.stock === 0) {
-            results.push({ ...row, Web_Stock: match ? match.stockText : '', Web_Status: match ? 'Zero web stock' : 'Missing from web' });
-          }
+          results.push({ ...row, Web_Stock: match ? match.stockText : '', Web_Status: !match ? 'Missing from web' : match.stock === 0 ? 'Zero web stock' : 'Web on sale' });
         }
         flaggedRows = results;
         const shelfStockColumn = sos.columnMap.get('total_stock_available');
         const shelfItemKeys = new Set(sos.rows.map((row) => keyOf(row[itemColumn])));
         noStockRows = results.filter((row) => {
+          if (row.Web_Status === 'Web on sale') return false;
           const shelfStock = String(row[shelfStockColumn] ?? '').trim();
           return shelfStock !== '' && Number.isFinite(Number(shelfStock)) && Number(shelfStock) === 0;
         });
@@ -332,6 +355,8 @@
           noStockRows.push(row);
         }
         sosColumns = sos.columns;
+        sosRows = sos.rows;
+        webLookup = lookup;
         const rrpColumn = sos.columnMap.get('rrp');
         const sosProduct = sos.columnMap.get('product_name');
         const parsePrice = (value) => {
@@ -359,16 +384,19 @@
         element('total').textContent = numberFormat.format(sos.rows.length);
         element('ns-shelf').textContent = numberFormat.format(sos.rows.length);
         element('ns-web-rows').textContent = numberFormat.format(web.rows.length);
-        element('flagged').textContent = numberFormat.format(results.length);
+        element('flagged').textContent = numberFormat.format(results.filter((row) => row.Web_Status !== 'Web on sale').length);
+        element('sale').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Web on sale').length);
         element('zero').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Zero web stock').length);
         element('missing').textContent = numberFormat.format(results.filter((row) => row.Web_Status === 'Missing from web').length);
-        for (const id of ['download', 'download-no-stock', 'search', 'filter']) element(id).disabled = false;
+        for (const id of ['download', 'download-html', 'download-no-stock', 'search', 'filter']) element(id).disabled = false;
         element('download-note').hidden = false;
         element('sos-status').textContent = `${sourceFiles.sos.name} / ${numberFormat.format(sos.rows.length)} rows`;
         element('web-status').textContent = `${sourceFiles.web.name} / ${numberFormat.format(web.rows.length)} rows`;
         renderRows();
         renderNoStockRows();
         renderPriceRows();
+        element('lookup-search').disabled = false;
+        renderLookup();
         const missingPrice = [!rrpColumn && 'rrp (shelf file)', !webPrice && 'price (web file)'].filter(Boolean);
         if (missingPrice.length) notify(`Comparison complete. Price comparison skipped: missing column ${missingPrice.join(' and ')}.`, true);
         else notify('Comparison complete.');
@@ -389,7 +417,7 @@
       for (const row of rows) {
         const tableRow = document.createElement('tr');
         const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status];
-        const classes = ['item', 'product', 'numeric', 'numeric', row.Web_Status === 'Zero web stock' ? 'status zero' : 'status'];
+        const classes = ['item', 'product', 'numeric', 'numeric', row.Web_Status === 'Zero web stock' ? 'status zero' : row.Web_Status === 'Web on sale' ? 'status sale' : 'status'];
         values.forEach((value, index) => {
           const cell = document.createElement('td');
           cell.textContent = value;
@@ -468,6 +496,49 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
 
+    function renderLookup(emptyText = 'No matching items') {
+      const query = element('lookup-search').value.trim().toLowerCase();
+      const fragment = document.createDocumentFragment();
+      let shown = 0;
+      let total = 0;
+      let message = emptyText;
+      if (sosRows.length && !query) message = 'Type an item number or product name to search';
+      if (query) {
+        const findColumn = (name) => sosColumns.find((column) => column.toLowerCase() === name);
+        const itemColumn = findColumn('item_number');
+        const productColumn = findColumn('product_name');
+        const stockColumn = findColumn('total_stock_available');
+        for (const row of sosRows) {
+          if (!`${row[itemColumn]} ${row[productColumn] || ''}`.toLowerCase().includes(query)) continue;
+          total++;
+          if (shown >= LOOKUP_LIMIT) continue;
+          shown++;
+          const match = webLookup.get(keyOf(row[itemColumn]));
+          const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || '', match ? match.stockText : '-'];
+          const classes = ['item', 'product', 'numeric', 'numeric'];
+          const tableRow = document.createElement('tr');
+          values.forEach((value, index) => {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            cell.className = classes[index];
+            tableRow.append(cell);
+          });
+          fragment.append(tableRow);
+        }
+      }
+      if (!shown) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 4;
+        cell.className = 'empty';
+        cell.textContent = message;
+        row.append(cell);
+        fragment.append(row);
+      }
+      element('lookup-results').replaceChildren(fragment);
+      element('lookup-showing').textContent = query ? `${numberFormat.format(shown)} of ${numberFormat.format(total)} matches${total > shown ? ` (first ${LOOKUP_LIMIT} shown)` : ''}` : `${numberFormat.format(sosRows.length)} shelf rows loaded`;
+    }
+    element('lookup-search').addEventListener('input', () => renderLookup());
     element('search').addEventListener('input', () => renderRows());
     element('filter').addEventListener('change', () => renderRows());
     function downloadRows(rows, filename) {
@@ -485,6 +556,114 @@
     }
 
     element('download').addEventListener('click', () => downloadRows(flaggedRows, 'sos_zero_or_missing_web_stock.csv'));
+    element('download-html').addEventListener('click', () => {
+      const findColumn = (name) => sosColumns.find((column) => column.toLowerCase() === name);
+      const itemColumn = findColumn('item_number');
+      const productColumn = findColumn('product_name');
+      const stockColumn = findColumn('total_stock_available');
+      const rrpColumn = findColumn('rrp');
+      const data = flaggedRows.map((row) => [row[itemColumn] ?? '', row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '') : '', row[stockColumn] || '', row.Web_Stock === '' ? '-' : row.Web_Stock, row.Web_Status, webLookup.get(keyOf(row[itemColumn]))?.link || '']);
+      const json = JSON.stringify(data).split('<').join('\\u003c').split(String.fromCharCode(8232)).join('\\u2028').split(String.fromCharCode(8233)).join('\\u2029');
+      const page = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historics: Web inventory report</title>
+<style>
+body { margin: 0; padding: 24px; font: 14px/1.5 system-ui, sans-serif; color: #202b29; background: #fff; }
+h1 { font: normal 24px Georgia, serif; margin: 0 0 16px; }
+.bar { display: flex; gap: 12px; flex-wrap: wrap; }
+input, select { padding: 10px 12px; font: inherit; border: 1px solid #d8e1db; border-radius: 4px; box-sizing: border-box; background: #fff; }
+input { flex: 1 1 280px; max-width: 420px; }
+.wrap { margin-top: 16px; border-block: 1px solid #d8e1db; overflow: auto; max-height: 75vh; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eef4ef; }
+th { position: sticky; top: 0; background: #eef4ef; }
+.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.s { font-size: 12px; white-space: nowrap; color: #9a4427; }
+.s.zero { color: #17634f; }
+.s.sale { color: #1f5fbf; }
+.empty { text-align: center; color: #5c6d67; padding: 24px; }
+.lk { width: 28px; padding-right: 0; }
+.lk a { color: #1f5fbf; display: inline-flex; vertical-align: middle; }
+.lk a:hover { color: #17634f; }
+.sr { position: absolute; left: -9999px; }
+button.sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: bold; }
+button.sort:focus-visible { outline: 2px solid #17634f; outline-offset: 2px; }
+.arrows { display: inline-flex; flex-direction: column; font-size: 8px; line-height: 8px; }
+.arrows span { color: #c3cdc7; }
+th[aria-sort="ascending"] .up, th[aria-sort="descending"] .dn { color: #202b29; }
+#count { margin-top: 10px; color: #5c6d67; font-size: 12px; }
+</style></head><body>
+<h1>Web inventory report</h1>
+<div class="bar"><input id="q" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" autofocus>
+<select id="st" aria-label="Filter by status"><option value="">All statuses</option><option>Zero web stock</option><option>Missing from web</option><option>Web on sale</option></select></div>
+<div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div id="count"></div>
+<script>
+const data = ${json};
+let sortCol = null;
+let sortDir = 1;
+const rows = document.getElementById('rows');
+const count = document.getElementById('count');
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const st = document.getElementById('st').value;
+  const visible = data.filter((r) => (!st || r[5] === st) && (!q || (r[0] + ' ' + r[1]).toLowerCase().includes(q)));
+  if (sortCol !== null) {
+    const collator = new Intl.Collator('en-GB', { numeric: true, sensitivity: 'base' });
+    visible.sort((a, b) => collator.compare(a[sortCol], b[sortCol]) * sortDir);
+  }
+  document.querySelectorAll('th[data-col]').forEach((th) => {
+    th.setAttribute('aria-sort', Number(th.dataset.col) === sortCol ? (sortDir === 1 ? 'ascending' : 'descending') : 'none');
+  });
+  const frag = document.createDocumentFragment();
+  for (const r of visible) {
+    const tr = document.createElement('tr');
+    const lt = document.createElement('td');
+    lt.className = 'lk';
+    const href = String(r[6]).toLowerCase();
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      const a = document.createElement('a');
+      a.href = r[6];
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = 'Open web page';
+      a.setAttribute('aria-label', 'Open web page for ' + r[0]);
+      a.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>';
+      lt.append(a);
+    }
+    tr.append(lt);
+    r.slice(0, 6).forEach((v, i) => {
+      const td = document.createElement('td');
+      td.textContent = v;
+      td.className = i >= 2 && i <= 4 ? 'n' : i === 5 ? 's' + (v === 'Zero web stock' ? ' zero' : v === 'Web on sale' ? ' sale' : '') : '';
+      tr.append(td);
+    });
+    frag.append(tr);
+  }
+  if (!visible.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 7; td.className = 'empty'; td.textContent = 'No matching items'; tr.append(td); frag.append(tr); }
+  rows.replaceChildren(frag);
+  count.textContent = visible.length.toLocaleString('en-GB') + ' of ' + data.length.toLocaleString('en-GB') + ' rows';
+}
+document.getElementById('q').addEventListener('input', render);
+document.getElementById('st').addEventListener('change', render);
+document.querySelectorAll('th[data-col]').forEach((th) => {
+  th.querySelector('button').addEventListener('click', () => {
+    const col = Number(th.dataset.col);
+    if (sortCol === col) sortDir = -sortDir; else { sortCol = col; sortDir = 1; }
+    render();
+  });
+});
+render();
+<\/script></body></html>`;
+      const url = URL.createObjectURL(new Blob([page], { type: 'text/html;charset=utf-8;' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'sos_web_inventory_report.html';
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
     element('download-no-stock').addEventListener('click', () => downloadRows(noStockRows, 'sos_no_web_or_shelf_stock.csv'));
   </script>
 </body>
