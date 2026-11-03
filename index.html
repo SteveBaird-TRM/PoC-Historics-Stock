@@ -145,7 +145,7 @@
           <select id="filter" aria-label="Filter by web status" disabled><option value="all">All statuses</option><option value="Zero web stock">Zero web stock</option><option value="Missing from web">Missing from web</option><option value="Web on sale">Web on sale</option></select>
         </div>
         <div class="table-wrap">
-          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Reserved</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="6" class="empty">No comparison yet</td></tr></tbody></table>
+          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Reserved stock</th><th class="numeric" scope="col">Web stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="6" class="empty">No comparison yet</td></tr></tbody></table>
         </div>
         <div class="table-footer"><span id="showing">0 rows</span><span id="download-note" hidden>CSV includes all flagged rows</span></div>
       </section>
@@ -569,7 +569,8 @@
     element('search').addEventListener('input', () => renderRows());
     element('filter').addEventListener('change', () => renderRows());
     function downloadRows(rows, filename) {
-      const columns = [...sosColumns, 'Reserved_Stock', 'Web_Stock', 'Web_Status'];
+      const shelfIdx = sosColumns.findIndex((column) => column.toLowerCase() === 'total_stock_available');
+      const columns = [...sosColumns.slice(0, shelfIdx + 1), 'Reserved_Stock', 'Web_Stock', ...sosColumns.slice(shelfIdx + 1), 'Web_Status'];
       const csv = Papa.unparse({ fields: columns, data: rows.map((row) => columns.map((column) => row[column])) }, { escapeFormulae: true });
       const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -627,7 +628,7 @@ th[aria-sort="ascending"] .up, th[aria-sort="descending"] .dn { color: #202b29; 
 <header class="report-header"><h1>Web inventory report</h1><time class="generated-at" datetime="${generatedAt.toISOString()}">Generated: ${timestamp}</time></header>
 <div class="bar"><input id="q" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" autofocus>
 <select id="st" aria-label="Filter by status"><option value="">All statuses</option><option>Zero web stock</option><option>Missing from web</option><option>Web on sale</option></select></div>
-<div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Reserved</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="wrap"><table><thead><tr><th class="lk"><span class="sr">Link</span></th><th data-col="0" aria-sort="none"><button type="button" class="sort">Item number <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th data-col="1" aria-sort="none"><button type="button" class="sort">Product <span class="arrows"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th><th class="n">RRP</th><th class="n">Shelf stock</th><th class="n">Reserved stock</th><th class="n">Web stock</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
 <div id="count"></div>
 <script>
 const data = ${json};
