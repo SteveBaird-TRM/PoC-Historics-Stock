@@ -40,6 +40,7 @@
     input[type=file] { width: 100%; min-width: 0; color: var(--muted); font-size: 13px; }
     input::file-selector-button { padding: 9px 12px; margin-right: 12px; background: var(--wash); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); cursor: pointer; font: inherit; }
     .file-status { margin: 16px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; min-height: 20px; }
+      .source-link { display: inline-block; margin-top: 10px; color: #1f5fbf; font-size: 13px; }
     .actions { padding: 20px 0 26px; display: flex; gap: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
     .actions #compare { margin-left: auto; }
     .folder { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -109,6 +110,7 @@
       <div class="source">
         <div class="source-heading"><label for="web">Web inventory file (csv)</label><span>id / stock</span></div>
         <input id="web" type="file" accept=".csv,text/csv"><p class="file-status" id="web-status">No file selected</p>
+        <a class="source-link" href="https://docs.google.com/spreadsheets/d/1MvUfg4YzxkOPX3GtowwI0KTKedjaPxFEQPweqBQ4E0o/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer">Source Data (will need downloading as CSV).</a>
       </div>
     </section>
     <div class="actions">
