@@ -172,8 +172,8 @@
       const files = Array.from(event.target.files);
       if (!files.length) return;
       const matches = (name) => files.filter((file) => file.name.toLowerCase() === name);
-      const sosMatches = matches('sos.csv');
-      const webMatches = matches('web.csv');
+      const sosMatches = matches('CMSARX329 - Stock on Shelf.csv');
+      const webMatches = matches('Historics Product Feed - Latest.csv');
       if (sosMatches.length !== 1 || webMatches.length !== 1) {
         selectFiles({ sos: null, web: null, reserved: null });
         notify('The selected folder must contain exactly one sos.csv and one web.csv.', true);
