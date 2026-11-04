@@ -74,6 +74,10 @@
     td.product { min-width: 220px; overflow-wrap: anywhere; }
     td.item { white-space: nowrap; font-family: monospace; }
     .numeric { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    td.link { width: 1%; text-align: center; padding-right: 0; }
+    td.link a { color: #1f5fbf; display: inline-flex; vertical-align: middle; }
+    td.link a:hover { color: var(--green); }
     .status { font-size: 12px; white-space: nowrap; color: var(--orange); }
     .status.zero { color: var(--green); }
     .status.sale { color: #1f5fbf; }
@@ -120,7 +124,7 @@
           <label class="check"><input id="hide-zero" type="checkbox" disabled> Hide lines with 0 available stock</label>
         </div>
         <div class="table-wrap">
-          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">RRP</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th class="numeric" scope="col">Reserved stock</th><th class="numeric" scope="col">Available stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="8" class="empty">No comparison yet</td></tr></tbody></table>
+          <table><thead><tr><th scope="col"><span class="sr-only">Link</span></th><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">RRP</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th class="numeric" scope="col">Reserved stock</th><th class="numeric" scope="col">Available stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="9" class="empty">No comparison yet</td></tr></tbody></table>
         </div>
         <div class="table-footer"><span id="showing">0 rows</span><span id="download-note" hidden>CSV includes all flagged rows</span></div>
       </section>
@@ -248,7 +252,7 @@
           const reservedQty = sourceFiles.reserved ? (reservedLookup.get(key) ?? 0) : null;
           const shelfText = String(row[sos.columnMap.get('total_stock_available')] ?? '').replace(/,/g, '').trim();
           const shelfQty = shelfText !== '' && Number.isFinite(Number(shelfText)) ? Number(shelfText) : null;
-          results.push({ ...row, Reserved_Stock: reservedQty === null ? '' : String(reservedQty), Available_Stock: reservedQty === null || shelfQty === null ? '' : String(shelfQty - reservedQty), Web_Stock: match ? match.stockText : '', Web_Status: !match ? 'Missing from web' : match.stock === 0 ? 'Zero web stock' : 'Web on sale' });
+          results.push({ ...row, Reserved_Stock: reservedQty === null ? '' : String(reservedQty), Available_Stock: reservedQty === null || shelfQty === null ? '' : String(shelfQty - reservedQty), Web_Stock: match ? match.stockText : '', Web_Link: match && match.link.toLowerCase().startsWith('http') ? match.link : '', Web_Status: !match ? 'Missing from web' : match.stock === 0 ? 'Zero web stock' : 'Web on sale' });
         }
         flaggedRows = results;
         sosColumns = sos.columns;
@@ -274,8 +278,8 @@
       const fragment = document.createDocumentFragment();
       for (const row of rows) {
         const tableRow = document.createElement('tr');
-        const values = [row[itemColumn], row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '-') : '-', row[stockColumn] || ''];
-        const classes = ['item', 'product', 'numeric', 'numeric'];
+        const values = ['', row[itemColumn], row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '-') : '-', row[stockColumn] || ''];
+        const classes = ['link', 'item', 'product', 'numeric', 'numeric'];
         values.push(row.Web_Stock === '' ? '-' : row.Web_Stock);
         classes.push('numeric');
         if (withReserved) { for (const v of [row.Reserved_Stock, row.Available_Stock]) { values.push(v === '' || v === undefined ? '-' : v); classes.push('numeric'); } }
@@ -283,6 +287,18 @@
         classes.push(row.Web_Status === 'Zero web stock' ? 'status zero' : row.Web_Status === 'Web on sale' ? 'status sale' : 'status');
         values.forEach((value, index) => {
           const cell = document.createElement('td');
+          if (index === 0) {
+            if (row.Web_Link) {
+              const a = document.createElement('a');
+              a.href = row.Web_Link; a.target = '_blank'; a.rel = 'noopener noreferrer';
+              a.title = 'Open web link'; a.setAttribute('aria-label', 'Open web link for ' + row[itemColumn]);
+              a.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>';
+              cell.append(a);
+            }
+            cell.className = classes[0];
+            tableRow.append(cell);
+            return;
+          }
           cell.textContent = value;
           cell.className = classes[index];
           tableRow.append(cell);
@@ -292,7 +308,7 @@
       if (!rows.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = withReserved ? 8 : 6;
+        cell.colSpan = withReserved ? 9 : 7;
         cell.className = 'empty';
         cell.textContent = emptyText;
         row.append(cell);
