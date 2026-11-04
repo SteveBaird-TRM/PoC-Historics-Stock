@@ -172,11 +172,11 @@
       const files = Array.from(event.target.files);
       if (!files.length) return;
       const matches = (name) => files.filter((file) => file.name.toLowerCase() === name);
-      const sosMatches = matches('CMSARX329 - Stock on Shelf.csv');
-      const webMatches = matches('Historics Product Feed - Latest.csv');
+      const sosMatches = matches('cmsarx329 - stock on shelf.csv');
+      const webMatches = matches('historics product feed - latest.csv');
       if (sosMatches.length !== 1 || webMatches.length !== 1) {
         selectFiles({ sos: null, web: null, reserved: null });
-        notify('The selected folder must contain exactly one sos.csv and one web.csv.', true);
+        notify('The selected folder must contain exactly one CMSARX329 - Stock on Shelf.csv and one Historics Product Feed - Latest.csv.', true);
         return;
       }
       const reservedMatches = matches('reserved.csv');
@@ -360,15 +360,15 @@
       for await (const entry of folderHandle.values()) {
         if (entry.kind !== 'file') continue;
         const name = entry.name.toLowerCase();
-        if (['sos.csv', 'web.csv', 'reserved.csv'].includes(name)) found[name] = (found[name] || []).concat(entry);
+        if (['cmsarx329 - stock on shelf.csv', 'historics product feed - latest.csv', 'reserved.csv'].includes(name)) found[name] = (found[name] || []).concat(entry);
       }
-      if (!found['sos.csv'] || found['sos.csv'].length !== 1 || !found['web.csv'] || found['web.csv'].length !== 1 || (found['reserved.csv'] || []).length > 1) {
+      if (!found['cmsarx329 - stock on shelf.csv'] || found['cmsarx329 - stock on shelf.csv'].length !== 1 || !found['historics product feed - latest.csv'] || found['historics product feed - latest.csv'].length !== 1 || (found['reserved.csv'] || []).length > 1) {
         selectFiles({ sos: null, web: null, reserved: null });
-        notify('The data folder must contain exactly one sos.csv and one web.csv (and optionally one reserved.csv).', true);
+        notify('The data folder must contain exactly one CMSARX329 - Stock on Shelf.csv and one Historics Product Feed - Latest.csv (and optionally one reserved.csv).', true);
         return;
       }
-      const sos = await found['sos.csv'][0].getFile();
-      const web = await found['web.csv'][0].getFile();
+      const sos = await found['cmsarx329 - stock on shelf.csv'][0].getFile();
+      const web = await found['historics product feed - latest.csv'][0].getFile();
       const reserved = found['reserved.csv'] ? await found['reserved.csv'][0].getFile() : null;
       selectFiles({ sos, web, reserved });
       element('folder-name').textContent = 'Folder: ' + folderHandle.name + ' / loaded ' + new Date().toLocaleTimeString('en-GB', { timeStyle: 'short' });
