@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Historics: Stock</title>
+  <link rel="icon" href="favicon-32x32.png" type="image/x-icon">
+  <style>
+    :root { color-scheme: light; --ink: #202b29; --muted: #5c6d67; --line: #d8e1db; --green: #17634f; --wash: #eef4ef; --orange: #9a4427; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: #f8faf7; font: 15px/1.5 "Trebuchet MS", sans-serif; letter-spacing: 0; }
+    button, input, select { font: inherit; }
+    button, input, select, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; border: 1px solid var(--green); border-radius: 4px; padding: 10px 18px; background: var(--green); color: white; font-weight: bold; }
+    button:hover:not(:disabled) { background: #114c3d; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    #download-no-stock, #download-price { display: block; margin-left: auto; margin-bottom: 20px; }
+    .download-row { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .tabs { display: flex; align-items: end; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-top: 6px; }
+    .tab { flex: 0 0 auto; font-size: 18px; white-space: nowrap; border-color: var(--line); border-radius: 6px 6px 0 0; margin-bottom: -1px; background: #e7ede8; color: var(--muted); }
+    .tab:hover:not(:disabled) { background: #f2f6f2; color: var(--ink); }
+    .tab[aria-selected="true"] { border-bottom-color: var(--green); background: var(--green); color: white; }
+    .tab[aria-selected="true"]:hover:not(:disabled) { border-bottom-color: #114c3d; background: #114c3d; color: white; }
+    .tab-panel { padding-top: 24px; }
+    .panel-title { margin-bottom: 16px; }
+    :focus-visible { outline: 3px solid #cf8a32; outline-offset: 3px; }
+    header { border-top: 5px solid var(--green); background: white; border-bottom: 1px solid var(--line); }
+    .header-inner { max-width: 1320px; margin: auto; padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { font: bold 23px Georgia, serif; }
+    .local { color: var(--muted); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+    .local::before { content: ""; display: block; width: 8px; height: 8px; background: var(--green); border-radius: 50%; }
+    main { max-width: 1320px; margin: auto; padding: 32px; }
+    .heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 24px; }
+    h1 { margin: 0; font: normal 34px/1.2 Georgia, serif; }
+    .sources { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+    .source { min-width: 0; border: 1px solid var(--line); background: white; border-radius: 6px; padding: 22px; }
+    .source-heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .source label { font-weight: bold; font-size: 18px; }
+    .source-heading span { color: var(--muted); font: 13px monospace; }
+    input[type=file] { width: 100%; min-width: 0; color: var(--muted); font-size: 13px; }
+    input::file-selector-button { padding: 9px 12px; margin-right: 12px; background: var(--wash); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); cursor: pointer; font: inherit; }
+    .file-status { margin: 16px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; min-height: 20px; }
+      .source-link { display: inline-block; margin-top: 10px; color: #1f5fbf; font-size: 13px; }
+    .actions { padding: 20px 0 26px; display: flex; gap: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+    .actions #compare { margin-left: auto; }
+    .folder { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .folder[hidden] { display: none; }
+    .folder label { white-space: nowrap; font-weight: bold; font-size: 13px; }
+    .folder input { max-width: 270px; }
+    #message { border-left: 3px solid var(--green); padding: 12px 16px; margin: 0 0 24px; background: var(--wash); overflow-wrap: anywhere; }
+    #message.error { border-color: var(--orange); color: #813720; background: #fcf0e9; }
+    [hidden] { display: none !important; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid var(--line); margin-bottom: 28px; background: repeating-linear-gradient(135deg, #fff, #fff 10px, #fcfdfb 10px, #fcfdfb 20px); }
+    .stat { padding: 20px 24px; border-right: 1px solid var(--line); }
+    .stat:first-child { padding-left: 0; }
+    .stat:last-child { border-right: none; }
+    .stat span { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; }
+    .stat strong { display: block; font: normal 32px/1.4 Georgia, serif; font-variant-numeric: tabular-nums; }
+    .stat:nth-child(2) strong { color: var(--green); }
+    .stats.five { grid-template-columns: repeat(5, 1fr); }
+    .stats.three { grid-template-columns: repeat(3, 1fr); }
+    .stats.three .stat:nth-child(2) strong { color: var(--ink); }
+    .stat:nth-child(4) strong { color: var(--orange); }
+    .check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    h2 { margin: 0 auto 0 0; font: normal 23px Georgia, serif; }
+    input[type=search], select { border: 1px solid #b8c7be; background: white; border-radius: 4px; min-height: 40px; padding: 8px 12px; color: var(--ink); }
+    input[type=search] { width: 250px; max-width: 100%; }
+    .table-wrap { border-block: 1px solid var(--line); background: white; overflow: auto; max-height: 540px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th { text-align: left; background: var(--wash); color: var(--muted); font-size: 11px; text-transform: uppercase; white-space: nowrap; position: sticky; top: 0; }
+    th, td { padding: 13px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th:first-child, td:first-child { padding-left: 20px; }
+    td.product { min-width: 220px; overflow-wrap: anywhere; }
+    td.item { white-space: nowrap; font-family: monospace; }
+    .numeric { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .status { font-size: 12px; white-space: nowrap; color: var(--orange); }
+    .status.zero { color: var(--green); }
+    .status.sale { color: #1f5fbf; }
+    tbody tr:hover { background: #f6f9f6; }
+    .empty { text-align: center; padding: 54px 20px; color: var(--muted); }
+    .table-footer { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; color: var(--muted); font-size: 12px; }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { color: var(--ink); }
+    th.sortable::after { content: " \2195"; opacity: .4; }
+    th.sortable[aria-sort="ascending"]::after { content: " \25B2"; opacity: 1; }
+    th.sortable[aria-sort="descending"]::after { content: " \25BC"; opacity: 1; }
+    .hide-stock .col-stock, .hide-reserved .col-reserved { display: none; }
+    .neg { color: var(--orange); font-weight: bold; }
+    @media (max-width: 700px) {
+      .header-inner { padding: 18px 20px; }
+      main { padding: 24px 20px; }
+      h1 { font-size: 28px; }
+      .heading { align-items: start; flex-direction: column; gap: 16px; }
+      .sources { grid-template-columns: 1fr; gap: 14px; }
+      .source { padding: 18px; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat, .stat:first-child { padding: 16px; }
+      .stat:nth-child(2) { border-right: none; }
+      .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .toolbar h2 { width: 100%; margin-bottom: 4px; }
+      .toolbar input, .toolbar select { width: 100%; }
+      .folder { flex-wrap: wrap; }
+      .local { font-size: 12px; }
+      .brand { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <header><div class="header-inner"><div class="brand">Historics Stock</div><div class="local">Local processing</div></div></header>
+  <main>
+    <div class="actions">
+      <div id="picker-group" class="folder"><button id="pick-folder" type="button" hidden>Select data folder</button><button id="refresh-folder" type="button" hidden>Refresh from folder</button><button id="reload" type="button" disabled>Reload</button><input id="file" type="file" accept=".csv" aria-label="Select reserved.csv" hidden><span id="folder-name" class="file-status"></span></div>
+    </div>
+    <p id="message" role="status" aria-live="polite" hidden></p>
+    <section aria-label="Stock">
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search item number or product name" aria-label="Search item number or product name" disabled>
+        <label class="check"><input id="hide-zero" type="checkbox"> Hide no available stock</label>
+        <label class="check"><input id="hide-stock" type="checkbox"> Hide physical stock</label>
+        <label class="check"><input id="hide-reserved" type="checkbox"> Hide physical reserved</label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th class="sortable" scope="col" data-key="item" tabindex="0" aria-sort="none">SKU</th>
+            <th class="sortable" scope="col" data-key="product" tabindex="0" aria-sort="none">Product name</th>
+            <th class="numeric col-stock" scope="col">Physical stock</th>
+            <th class="numeric col-reserved" scope="col">Reserved stock</th>
+            <th class="numeric" scope="col">Available stock</th>
+          </tr></thead>
+          <tbody id="results"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="table-footer"><span id="showing">0 rows</span></div>
+    </section>
+  </main>
+  <script src="papaparse.min.js"></script>
+  <script>
+    const element = (id) => document.getElementById(id);
+    const numberFormat = new Intl.NumberFormat('en-GB');
+    let rows = [];
+    let sortKey = null, sortDir = 1;
+    const collator = new Intl.Collator('en-GB', { numeric: true, sensitivity: 'base' });
+
+    function notify(text, error = false) {
+      element('message').textContent = text;
+      element('message').classList.toggle('error', error);
+      element('message').hidden = !text;
+    }
+
+    async function decode(file) {
+      const buffer = await file.arrayBuffer();
+      try { return new TextDecoder('utf-8', { fatal: true }).decode(buffer); }
+      catch (e) { return new TextDecoder('windows-1252').decode(buffer); }
+    }
+
+    const toNumber = (v) => { const t = String(v ?? '').replace(/,/g, '').trim(); if (t === '') return 0; const n = Number(t); return Number.isFinite(n) ? n : NaN; };
+
+    function loadText(text, label) {
+      if (!window.Papa) throw new Error('CSV parser could not load. Ensure papaparse.min.js is beside this page.');
+      const parsed = Papa.parse(text, { header: true, skipEmptyLines: 'greedy', transformHeader: (h) => h.trim() });
+      const map = new Map((parsed.meta.fields || []).map((c) => [c.toLowerCase(), c]));
+      const cols = ['item number', 'product name', 'physical stock', 'physical reserved'].map((c) => {
+        if (!map.has(c)) throw new Error(`${label}: missing required column "${c}".`);
+        return map.get(c);
+      });
+      const out = [];
+      for (const [i, r] of parsed.data.entries()) {
+        const item = String(r[cols[0]] ?? '').trim();
+        if (!item) continue;
+        const stock = toNumber(r[cols[2]]), reserved = toNumber(r[cols[3]]);
+        if (Number.isNaN(stock) || Number.isNaN(reserved)) throw new Error(`${label} row ${i + 2}: invalid stock or reserved value.`);
+        out.push({ item, product: String(r[cols[1]] ?? '').trim(), stock, reserved, available: stock - reserved });
+      }
+      if (!out.length) throw new Error(`${label}: no data rows found.`);
+      rows = out;
+      element('search').disabled = false;
+      notify('');
+      render();
+    }
+
+    async function loadFile(file) {
+      try { loadText(await decode(file), file.name); }
+      catch (error) { rows = []; element('search').disabled = true; render('No data'); notify(error.message, true); }
+    }
+
+    function render(emptyText = 'No matching items') {
+      const query = element('search').value.trim().toLowerCase();
+      let visible = rows.filter((r) => !(element('hide-zero').checked && r.available === 0) && (!query || `${r.item} ${r.product}`.toLowerCase().includes(query)));
+      if (sortKey) visible = visible.slice().sort((a, b) => sortDir * collator.compare(a[sortKey], b[sortKey]));
+      const fragment = document.createDocumentFragment();
+      for (const r of visible) {
+        const tr = document.createElement('tr');
+        [[r.item, 'item'], [r.product, 'product'], [numberFormat.format(r.stock), 'numeric col-stock'], [numberFormat.format(r.reserved), 'numeric col-reserved'], [numberFormat.format(r.available), r.available < 0 ? 'numeric neg' : 'numeric']].forEach(([v, c]) => {
+          const td = document.createElement('td'); td.textContent = v; td.className = c; tr.append(td);
+        });
+        fragment.append(tr);
+      }
+      if (!visible.length) {
+        const tr = document.createElement('tr'); const td = document.createElement('td');
+        td.colSpan = 5; td.className = 'empty'; td.textContent = emptyText; tr.append(td); fragment.append(tr);
+      }
+      element('results').replaceChildren(fragment);
+      element('showing').textContent = `${numberFormat.format(visible.length)} of ${numberFormat.format(rows.length)} rows`;
+    }
+
+    element('search').addEventListener('input', () => render());
+    element('hide-zero').addEventListener('change', () => render());
+    const table = document.querySelector('table');
+    element('hide-stock').addEventListener('change', (e) => table.classList.toggle('hide-stock', e.target.checked));
+    element('hide-reserved').addEventListener('change', (e) => table.classList.toggle('hide-reserved', e.target.checked));
+
+    function sortBy(th) {
+      const key = th.dataset.key;
+      if (sortKey === key) sortDir = -sortDir; else { sortKey = key; sortDir = 1; }
+      document.querySelectorAll('th.sortable').forEach((h) => h.setAttribute('aria-sort', h === th ? (sortDir === 1 ? 'ascending' : 'descending') : 'none'));
+      render();
+    }
+    document.querySelectorAll('th.sortable').forEach((th) => {
+      th.addEventListener('click', () => sortBy(th));
+      th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sortBy(th); } });
+    });
+
+    // Data source: try reserved.csv beside the page (when served over http), then a remembered
+    // folder (File System Access API), otherwise a file chooser.
+    const hasPicker = typeof window.showDirectoryPicker === 'function';
+    let folderHandle = null;
+    function handleStore(mode, value) {
+      return new Promise((resolve) => {
+        try {
+          const open = indexedDB.open('historics-folder', 1);
+          open.onupgradeneeded = () => open.result.createObjectStore('kv');
+          open.onerror = () => resolve(null);
+          open.onsuccess = () => {
+            const store = open.result.transaction('kv', mode === 'get' ? 'readonly' : 'readwrite').objectStore('kv');
+            const req = mode === 'get' ? store.get('handle') : store.put(value, 'handle');
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve(null);
+          };
+        } catch (error) { resolve(null); }
+      });
+    }
+
+    async function loadFromFolder(interactive) {
+      if (!folderHandle) return false;
+      let permission = await folderHandle.queryPermission({ mode: 'read' });
+      if (permission !== 'granted' && interactive) permission = await folderHandle.requestPermission({ mode: 'read' });
+      if (permission !== 'granted') { notify('Click "Refresh from folder" to allow access to the data folder.'); return false; }
+      let handle;
+      try { handle = await folderHandle.getFileHandle('reserved.csv'); }
+      catch (e) { notify('The data folder must contain reserved.csv.', true); return false; }
+      await loadFile(await handle.getFile());
+      source = 'folder';
+      element('reload').disabled = false;
+      element('folder-name').textContent = 'Folder: ' + folderHandle.name + ' / loaded ' + new Date().toLocaleTimeString('en-GB', { timeStyle: 'short' });
+      return true;
+    }
+
+    let source = null;
+    async function loadHttp() {
+      try {
+        const res = await fetch('reserved.csv', { cache: 'no-store' });
+        if (!res.ok) return false;
+        await loadFile(new File([await res.blob()], 'reserved.csv'));
+        source = 'http';
+        element('reload').disabled = false;
+        return true;
+      } catch (e) { return false; }
+    }
+
+    element('file').addEventListener('change', (e) => { if (e.target.files[0]) { source = 'file'; element('reload').disabled = false; loadFile(e.target.files[0]); } });
+
+    element('reload').addEventListener('click', async () => {
+      if (source === 'http') { if (!(await loadHttp())) notify('Could not reload reserved.csv.', true); }
+      else if (source === 'folder') await loadFromFolder(true);
+      else if (source === 'file') {
+        const f = element('file').files[0];
+        if (!f) { element('file').click(); return; }
+        try { await loadFile(f); } catch (e) { notify('Could not re-read the file. Please select it again.', true); }
+      }
+    });
+
+    (async () => {
+      render('No data loaded');
+      if (location.protocol.startsWith('http') && await loadHttp()) return;
+      if (hasPicker) {
+        element('pick-folder').hidden = false;
+        element('pick-folder').addEventListener('click', async () => {
+          try { folderHandle = await window.showDirectoryPicker({ id: 'historics-data', mode: 'read' }); } catch (e) { return; }
+          await handleStore('put', folderHandle);
+          element('refresh-folder').hidden = false;
+          await loadFromFolder(true);
+        });
+        element('refresh-folder').addEventListener('click', () => loadFromFolder(true));
+        const saved = await handleStore('get');
+        if (saved) {
+          folderHandle = saved;
+          element('refresh-folder').hidden = false;
+          element('folder-name').textContent = 'Folder: ' + saved.name;
+          try { await loadFromFolder(false); } catch (e) { /* needs a click */ }
+        }
+      } else {
+        element('file').hidden = false;
+        notify('Select reserved.csv to load stock.');
+      }
+    })();
+  </script>
+</body>
+</html>
