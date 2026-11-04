@@ -120,7 +120,7 @@
           <label class="check"><input id="hide-zero" type="checkbox" disabled> Hide lines with 0 available stock</label>
         </div>
         <div class="table-wrap">
-          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th class="numeric" scope="col">Reserved stock</th><th class="numeric" scope="col">Available stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="7" class="empty">No comparison yet</td></tr></tbody></table>
+          <table><thead><tr><th scope="col">Item number</th><th scope="col">Product</th><th class="numeric" scope="col">RRP</th><th class="numeric" scope="col">Shelf stock</th><th class="numeric" scope="col">Web stock</th><th class="numeric" scope="col">Reserved stock</th><th class="numeric" scope="col">Available stock</th><th scope="col">Status</th></tr></thead><tbody id="results"><tr><td colspan="8" class="empty">No comparison yet</td></tr></tbody></table>
         </div>
         <div class="table-footer"><span id="showing">0 rows</span><span id="download-note" hidden>CSV includes all flagged rows</span></div>
       </section>
@@ -270,11 +270,12 @@
       const itemColumn = findColumn('item_number');
       const productColumn = findColumn('product_name');
       const stockColumn = findColumn('total_stock_available');
+      const rrpColumn = findColumn('rrp');
       const fragment = document.createDocumentFragment();
       for (const row of rows) {
         const tableRow = document.createElement('tr');
-        const values = [row[itemColumn], row[productColumn] || '', row[stockColumn] || ''];
-        const classes = ['item', 'product', 'numeric'];
+        const values = [row[itemColumn], row[productColumn] || '', rrpColumn ? (row[rrpColumn] || '-') : '-', row[stockColumn] || ''];
+        const classes = ['item', 'product', 'numeric', 'numeric'];
         values.push(row.Web_Stock === '' ? '-' : row.Web_Stock);
         classes.push('numeric');
         if (withReserved) { for (const v of [row.Reserved_Stock, row.Available_Stock]) { values.push(v === '' || v === undefined ? '-' : v); classes.push('numeric'); } }
@@ -291,7 +292,7 @@
       if (!rows.length) {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = withReserved ? 7 : 5;
+        cell.colSpan = withReserved ? 8 : 6;
         cell.className = 'empty';
         cell.textContent = emptyText;
         row.append(cell);
