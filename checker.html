@@ -387,7 +387,7 @@
       const web = await found['historics product feed - latest.csv'][0].getFile();
       const reserved = found['reserved.csv'] ? await found['reserved.csv'][0].getFile() : null;
       selectFiles({ sos, web, reserved });
-      element('folder-name').textContent = 'Folder: ' + folderHandle.name + ' / loaded ' + new Date().toLocaleTimeString('en-GB', { timeStyle: 'short' });
+      element('folder-name').textContent = 'Folder: ' + folderHandle.name + ' / loaded ' + new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
       element('compare').click();
     }
 
